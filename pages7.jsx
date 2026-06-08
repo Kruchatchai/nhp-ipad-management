@@ -167,6 +167,13 @@ function QuickStation({ go, user }) {
     setRetCond(0); setRetNote(""); setRetAccInsp({}); refocus();
   };
 
+  /* แยก asset tag จากค่าที่สแกน (รองรับ QR ที่เป็น URL ...?d=<tag> หรือ tag ดิบ) */
+  const parseScanned = (raw) => {
+    const s = String(raw || "").trim();
+    const m = s.match(/[?&]d=([^&]+)/);
+    if (m) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
+    return s;
+  };
   /* device search — by tag suffix, full tag, OR by holder name in borrows */
   const findDevice = (raw) => {
     const q = (raw !== undefined ? raw : tag).trim().toLowerCase();
@@ -250,7 +257,7 @@ function QuickStation({ go, user }) {
 
   return (
     <div>
-      {showCam && <QRScanner onClose={() => setShowCam(false)} onScan={raw => { setShowCam(false); setTag(raw); findDevice(raw); }} />}
+      {showCam && <QRScanner onClose={() => setShowCam(false)} onScan={raw => { setShowCam(false); const t = parseScanned(raw); setTag(t); findDevice(t); }} />}
 
       <PageHead crumb={["จุดบริการด่วน"]} title="จุดบริการด่วน (Quick Station)"
         desc="สแกน QR / พิมพ์ Asset Tag หรือชื่อผู้ยืม — ระบบตรวจสถานะและทำรายการได้ในหน้าจอเดียว"

@@ -89,6 +89,8 @@ function Teachers({ go, intent }) {
   const setTeachers = (v) => setStore(st => ({ teachers: typeof v === "function" ? v(st.teachers) : v }));
   const subjects = store.subjects;
   const setSubjects = (v) => setStore(st => ({ subjects: typeof v === "function" ? v(st.subjects) : v }));
+  // ตัวเลือกตำแหน่ง: รวมจากที่มีอยู่จริง + ค่ามาตรฐาน (พิมพ์เพิ่มใหม่ได้)
+  const roleOptions = [...new Set([...store.teachers.map(t => t.role).filter(Boolean), "ครูผู้สอน", "หัวหน้ากลุ่มสาระ", "รองผู้อำนวยการโรงเรียน", "ผู้อำนวยการโรงเรียน", "พนักงานราชการ", "ครูอัตราจ้าง", "ครูพี่เลี้ยงเด็กพิการ", "ธุรการ"])];
   const [q, setQ] = useState("");
   const [subj, setSubj] = useState("all");
   const [statusF, setStatusF] = useState("all");
@@ -150,7 +152,10 @@ function Teachers({ go, intent }) {
       <div className="field"><label>ชื่อ</label><input className="input" defaultValue={form.current.first || ""} onChange={e => form.current.first = e.target.value} /></div>
       <div className="field"><label>นามสกุล</label><input className="input" defaultValue={form.current.last || ""} onChange={e => form.current.last = e.target.value} /></div>
       <div className="field"><label>กลุ่มสาระ</label><select className="select" defaultValue={form.current.subject} onChange={e => form.current.subject = e.target.value}>{subjects.map(s => <option key={s}>{s}</option>)}</select></div>
-      <div className="field"><label>ตำแหน่ง</label><select className="select" defaultValue={form.current.role} onChange={e => form.current.role = e.target.value}><option>ครูผู้สอน</option><option>หัวหน้ากลุ่มสาระ</option><option>รองผู้อำนวยการ</option></select></div>
+      <div className="field"><label>ตำแหน่ง</label>
+        <input className="input" list="nhp-role-options" defaultValue={form.current.role} placeholder="เลือกหรือพิมพ์ตำแหน่งใหม่" onChange={e => form.current.role = e.target.value} />
+        <datalist id="nhp-role-options">{roleOptions.map(r => <option key={r} value={r} />)}</datalist>
+      </div>
       <div className="field"><label>เบอร์โทร</label><input className="input num" defaultValue={form.current.phone || ""} onChange={e => form.current.phone = e.target.value} /></div>
       <div className="field"><label>อีเมล</label><input className="input" defaultValue={form.current.email || ""} placeholder="name@nhp.ac.th" onChange={e => form.current.email = e.target.value} /></div>
       </div>

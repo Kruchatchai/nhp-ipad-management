@@ -287,6 +287,51 @@ function CustomPage({ menu }) {
   );
 }
 
+// หน้าสถานะอุปกรณ์แบบสาธารณะ (เปิดจากการสแกน QR สติกเกอร์ — ไม่ต้องล็อกอิน)
+function PublicDeviceStatus({ tag, logo }) {
+  const [data, setData] = uS(undefined);
+  uE(() => {
+    let alive = true;
+    (window.SB && window.SB.deviceStatus ? window.SB.deviceStatus(tag) : Promise.resolve({ ok: false }))
+      .then(r => { if (alive) setData(r && r.ok ? (r.data || null) : null); })
+      .catch(() => { if (alive) setData(null); });
+    return () => { alive = false; };
+  }, [tag]);
+  const STC = { "พร้อมใช้งาน": ["#1f9d6b", "#e0f4ec"], "ถูกยืม": ["#1488bd", "#e2f3fb"], "ชำรุด": ["#e04646", "#fbe4e4"], "ส่งซ่อม": ["#e0700f", "#fdeedd"], "สูญหาย": ["#64748b", "#eef2f5"] };
+  const c = data ? (STC[data.status] || ["#64748b", "#eef2f5"]) : ["#64748b", "#eef2f5"];
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--bg)", padding: 20 }}>
+      <div className="card card-pad" style={{ width: "100%", maxWidth: 400, textAlign: "center" }}>
+        <img src={logo || "assets/logo.png"} style={{ width: 48, height: 48, borderRadius: 12, margin: "0 auto 10px" }} alt="" />
+        <div style={{ fontSize: 13, color: "var(--text-3)", marginBottom: 18 }}>NHP iPad Management · ตรวจสอบสถานะอุปกรณ์</div>
+        {data === undefined ? (
+          <div style={{ padding: "30px 0", color: "var(--text-3)" }}>กำลังโหลด…</div>
+        ) : data === null ? (
+          <div style={{ padding: "24px 0" }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--danger-soft)", color: "var(--danger)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}><Icon name="alert" size={28} /></div>
+            <div style={{ fontWeight: 600 }}>ไม่พบอุปกรณ์</div>
+            <div className="num" style={{ color: "var(--text-3)", fontSize: 13, marginTop: 4 }}>{tag}</div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ width: 76, height: 76, borderRadius: 18, background: "var(--primary-soft)", color: "var(--primary)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icon name="tablet" size={38} stroke={1.5} /></div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{data.model || data.type_name || "อุปกรณ์"}</div>
+            <div className="num" style={{ color: "var(--text-2)", marginBottom: 14 }}>{data.asset_tag}</div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 999, background: c[1], color: c[0], fontWeight: 600, fontSize: 15 }}>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: c[0] }}></span>{data.status}
+            </div>
+            <div style={{ borderTop: "1px solid var(--border)", marginTop: 18, paddingTop: 14, textAlign: "left" }}>
+              <div className="kv" style={{ padding: "8px 4px" }}><span className="k">ผู้ถือครอง</span><span className="v">{data.holder || "—"}</span></div>
+              <div className="kv" style={{ padding: "8px 4px" }}><span className="k">ชั้น / ฝ่าย</span><span className="v">{data.holder_level || "—"}</span></div>
+            </div>
+          </div>
+        )}
+        <a href={window.location.pathname} style={{ display: "inline-block", marginTop: 20, color: "var(--primary)", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>เข้าสู่ระบบจัดการ →</a>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const LIVE = !!(window.NHP_CONFIG && window.NHP_CONFIG.live);
   // Live mode: ไม่เชื่อ localStorage — รอยืนยัน session กับ Supabase ก่อน
@@ -383,6 +428,9 @@ function App() {
     if (LIVE && window.SB) window.SB.auth.signOut();
     setAuthed(false);
   };
+
+  const deviceQuery = new URLSearchParams(window.location.search).get("d");
+  if (deviceQuery) return <PublicDeviceStatus tag={deviceQuery} logo={store.logo} />;
 
   if (recovery) return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--bg)", padding: 20 }}>

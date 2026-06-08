@@ -555,11 +555,13 @@ function QRStickers({ go }) {
   useEffect(() => { setPage(0); }, [perPage]);
   const sizePx = { "2x2": 58, "3x3": 76, "4x4": 96 }[size] || 76;
   const toggle = (k) => setContent(c => ({ ...c, [k]: !c[k] }));
+  // QR เก็บ URL หน้าสถานะ → สแกนด้วยมือถือเปิดดูสถานะอุปกรณ์ได้เลย
+  const qrURL = (tag) => location.origin + location.pathname + "?d=" + encodeURIComponent(tag);
 
   const stickerHTML = (d, px) => `
     <div style="border:1px solid #e3e3e3;border-radius:6px;padding:6px;display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff">
       ${content.logo ? `<div style="display:flex;align-items:center;gap:3px;justify-content:center"><span style="font-size:8px;font-weight:700;color:#1488bd">โรงเรียนหนองหงส์พิทยาคม</span></div>` : ""}
-      ${content.qr ? qrSVGString(d.assetTag, px) : ""}
+      ${content.qr ? qrSVGString(qrURL(d.assetTag), px) : ""}
       ${content.asset ? `<div style="font-size:9px;font-weight:700;color:#16242e">${d.assetTag}</div>` : ""}
       ${content.code ? `<div style="font-size:7px;color:#7e8f9c">${d.code}</div>` : ""}
     </div>`;
@@ -602,7 +604,7 @@ function QRStickers({ go }) {
       ctx.strokeRect(cx + 0.5, cy + 0.5, cw - 1, ch - 1);
       let y = cy + 8;
       if (content.logo) { ctx.fillStyle = "#1488bd"; ctx.font = "700 8px sans-serif"; ctx.textAlign = "center"; ctx.fillText("โรงเรียนหนองหงส์พิทยาคม", cx + cw / 2, y + 6); y += 16; }
-      if (content.qr) { const q = cell - 16; drawQR(ctx, d.assetTag, cx + (cw - q) / 2, y, q); y += q + 4; }
+      if (content.qr) { const q = cell - 16; drawQR(ctx, qrURL(d.assetTag), cx + (cw - q) / 2, y, q); y += q + 4; }
       if (content.asset) { ctx.fillStyle = "#16242e"; ctx.font = "700 11px sans-serif"; ctx.textAlign = "center"; ctx.fillText(d.assetTag, cx + cw / 2, y + 8); y += 15; }
       if (content.code) { ctx.fillStyle = "#7e8f9c"; ctx.font = "8px sans-serif"; ctx.textAlign = "center"; ctx.fillText(d.code, cx + cw / 2, y + 6); }
     });
@@ -667,7 +669,7 @@ function QRStickers({ go }) {
                     <img src="assets/logo.png" style={{ width: 13, height: 13 }} alt="" />
                     <span style={{ fontSize: 7, fontWeight: 700, color: "#1488bd" }}>นหพ.</span>
                   </div>}
-                  {content.qr && <QR value={d.assetTag} size={sizePx} />}
+                  {content.qr && <QR value={qrURL(d.assetTag)} size={sizePx} />}
                   {content.asset && <div style={{ fontSize: 8, fontWeight: 700, color: "#16242e", fontFamily: "Sora, sans-serif" }}>{d.assetTag}</div>}
                   {content.code && <div style={{ fontSize: 6.5, color: "#7e8f9c", fontFamily: "Sora, sans-serif" }}>{d.code}</div>}
                 </div>

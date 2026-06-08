@@ -331,7 +331,7 @@ function DeviceDetail({ device: deviceProp, onClose, go, onEdit, toast }) {
       } else if (k === "ชำรุด" && !state.repairs.some(r => r.device === device.assetTag && (r.status === "รอดำเนินการ" || r.status === "กำลังซ่อม"))) {
         // flagged broken with no open ticket → open one so it appears on the repair board
         const n = (state.repairs || []).length + 1;
-        repairs = [{ id: Date.now() + Math.random(), ticket: "RP-" + String(n).padStart(4, "0"), device: device.assetTag, model: device.model, type: "แจ้งชำรุดจากคลัง", reporter: "ผู้ดูแลระบบ", date: window.todayISO(), status: "รอดำเนินการ", statusCls: "b-warn", detail: "เปลี่ยนสถานะเป็นชำรุดจากหน้าจัดการอุปกรณ์", photos: [] }, ...state.repairs];
+        repairs = [{ id: window.uid(), ticket: "RP-" + String(n).padStart(4, "0"), device: device.assetTag, model: device.model, type: "แจ้งชำรุดจากคลัง", reporter: "ผู้ดูแลระบบ", date: window.todayISO(), status: "รอดำเนินการ", statusCls: "b-warn", detail: "เปลี่ยนสถานะเป็นชำรุดจากหน้าจัดการอุปกรณ์", photos: [] }, ...state.repairs];
       }
       return {
         ipads: state.ipads.map(d => d.id === device.id ? { ...d, status: k, statusCls: st.cls } : d),

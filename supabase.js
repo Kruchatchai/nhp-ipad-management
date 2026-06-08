@@ -37,6 +37,11 @@
         setPassword: function () { return Promise.resolve({ ok: false, error: "โหมดสาธิต" }); },
       },
       saveSettings: function () { return Promise.resolve({ ok: true }); },
+      deviceStatus: function (tag) {
+        var s = window.Store && window.Store.snapshot();
+        var d = s && s.ipads.find(function (x) { return x.assetTag === tag; });
+        return Promise.resolve({ ok: true, data: d ? { asset_tag: d.assetTag, model: d.model, type_name: d.typeName, status: d.status, holder: d.holder, holder_level: d.holderLevel } : null });
+      },
     };
     return;
   }
@@ -247,6 +252,17 @@
       lost: Number(a.lost) || 0, note: nn(a.note) };
   }
   function rowYear(y) { return { id: y.id, year: String(y.year), is_current: !!y.current }; }
+  function rowBorrow(b) {
+    return { id: b.id, device_id: (typeof b.deviceId === "number" ? b.deviceId : null), asset_tag: nn(b.device),
+      borrower_kind: nn(b.borrowerKind), borrower_id: (b.borrowerId != null ? b.borrowerId : null),
+      holder_name: nn(b.holder), level: nn(b.level), borrow_date: nn(b.borrowDate), due_date: nn(b.dueDate),
+      status: nn(b.status) || "ปกติ", accessories: b.accessories || [] };
+  }
+  function rowRepair(r) {
+    return { id: r.id, ticket: nn(r.ticket), asset_tag: nn(r.device), model: nn(r.model), type: nn(r.type),
+      status: nn(r.status) || "รอดำเนินการ", status_cls: nn(r.statusCls), reporter: nn(r.reporter),
+      report_date: nn(r.date), note: nn(r.detail) };
+  }
 
   function indexById(arr) { var m = {}; (arr || []).forEach(function (x) { if (x && x.id != null) m[x.id] = x; }); return m; }
 
@@ -292,6 +308,8 @@
     if (before.ipads !== after.ipads) jobs.push(syncTable("devices", before.ipads, after.ipads, rowDevice));
     if (before.accessories !== after.accessories) jobs.push(syncTable("accessories", before.accessories, after.accessories, rowAccessory));
     if (before.academicYears !== after.academicYears) jobs.push(syncTable("academic_years", before.academicYears, after.academicYears, rowYear));
+    if (before.borrows !== after.borrows) jobs.push(syncTable("borrows", before.borrows, after.borrows, rowBorrow));
+    if (before.repairs !== after.repairs) jobs.push(syncTable("repairs", before.repairs, after.repairs, rowRepair));
     if (before.subjects !== after.subjects) jobs.push(syncSubjects(before.subjects, after.subjects));
     return Promise.all(jobs).catch(function (e) { window.SB.lastSyncError = String(e); console.error("[NHP sync]", e); });
   }
@@ -350,5 +368,12 @@
     },
   };
 
-  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff, users: users, saveSettings: saveSettings };
+  // สถานะอุปกรณ์แบบสาธารณะ (สำหรับสแกน QR — ไม่ต้องล็อกอิน, ดูทีละเครื่อง)
+  async function deviceStatus(tag) {
+    var r = await sb.rpc("public_device_status", { tag: tag });
+    if (r.error) return { ok: false, error: r.error.message };
+    return { ok: true, data: (r.data && r.data[0]) || null };
+  }
+
+  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff, users: users, saveSettings: saveSettings, deviceStatus: deviceStatus };
 })();

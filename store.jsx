@@ -158,6 +158,8 @@
   // (populated AFTER borrows are finalized, below — avoids stale "กำลังใช้งาน")
 
   const ipads = D.devices.filter(d => d.type === "ipad").map(d => ({ ...d }));
+  // เรียงตามเลขเครื่องแบบธรรมชาติ (SC2 < SC10 < SC100) ทุกหน้าที่อ่านจาก ipads จะได้ลำดับถูก
+  ipads.sort((a, b) => String(a.assetTag).localeCompare(String(b.assetTag), undefined, { numeric: true, sensitivity: "base" }));
   const repairs = D.repairs.map(r => ({ ...r }));
   // ===== Sync repairs <-> iPad status (single source of truth) =====
   const ACTIVE = ["รอดำเนินการ", "กำลังซ่อม"];
@@ -262,6 +264,10 @@
     hydrate: (D) => { s = build(D || EMPTY); subs.forEach(f => f()); },
   };
 })();
+
+/* unique integer id generator (PK ต้องเป็น bigint — ห้ามใช้ float) */
+let _uidSeq = Date.now();
+window.uid = () => (_uidSeq += 1);
 
 /* append an audit-log entry (newest first) */
 window.logAction = (action, detail, cls, user, nav) => {
@@ -382,7 +388,7 @@ window.recordReturn = (tx) => {
     const dmgItems = tx.items.filter(it => it.cond === "ชำรุด");
     let rcount = (st.repairs || []).length;
     const newRepairs = dmgItems.map((it, i) => ({
-      id: Date.now() + Math.random() + i,
+      id: window.uid(),
       ticket: "RP-" + String(rcount + i + 1).padStart(4, "0"),
       device: it.assetTag, model: it.model, type: "เสียหายจากการคืน",
       reporter: tx.receiver || "ผู้ดูแลระบบ", date: "2569-06-05",
@@ -434,7 +440,7 @@ window.revertReturn = (entry) => {
     const newBorrows = entry.items.map(it => {
       const dev = st.ipads.find(d => d.assetTag === it.assetTag) || {};
       return {
-        id: Date.now() + Math.random(), device: it.assetTag, deviceId: dev.id, model: it.model, type: "iPad",
+        id: window.uid(), device: it.assetTag, deviceId: dev.id, model: it.model, type: "iPad",
         holder: entry.personName, level: entry.level, borrowDate: "2569-06-05", dueDate: "2570-03-01",
         overdueDays: -200, status: "ปกติ", approver: "ผู้ดูแลระบบ",
         accessories: (it.accExpected || []).map(a => ({ id: a.id, name: a.name, qty: a.qty })),
@@ -583,7 +589,7 @@ window.quickBorrow = (device, borrower, opts = {}) => {
   window.Store.update(st => ({
     ipads: st.ipads.map(d => d.id === device.id ? { ...d, status: "ถูกยืม", statusCls: "b-info", holder: holderName, holderLevel: holderLabel } : d),
     accessories: st.accessories.map(x => { const a = chosenAcc.find(c => c.id === x.id); return a ? { ...x, qty: Math.max(0, x.qty - a.qty) } : x; }),
-    borrows: [{ id: Date.now() + Math.random(), device: device.assetTag, deviceId: device.id, model: device.model, type: "iPad", holder: holderName, level: holderLabel, borrowDate: "2569-06-05", dueDate: due, overdueDays: -13, status: "ปกติ", approver: opts.user || "จุดบริการด่วน", accessories: chosenAcc, borrowerKind: borrower.level ? "s" : "t", borrowerId: borrower.id, usageStatus: "กำลังใช้งาน" }, ...st.borrows],
+    borrows: [{ id: window.uid(), device: device.assetTag, deviceId: device.id, model: device.model, type: "iPad", holder: holderName, level: holderLabel, borrowDate: window.todayISO(), dueDate: due, overdueDays: -13, status: "ปกติ", approver: opts.user || "จุดบริการด่วน", accessories: chosenAcc, borrowerKind: borrower.level ? "s" : "t", borrowerId: borrower.id, usageStatus: "กำลังใช้งาน" }, ...st.borrows],
     personStatus: { ...st.personStatus, [(borrower.level !== undefined ? "s:" : "t:") + borrower.id]: "กำลังใช้งาน" },
     deviceEvents: { ...st.deviceEvents, [device.assetTag]: [...(st.deviceEvents[device.assetTag] || []), { holder: holderName, level: holderLabel, from: "2569-06-05", to: null, days: null, kind: "current", year: st.year, term: "1" }] },
   }));
