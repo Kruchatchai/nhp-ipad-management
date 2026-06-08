@@ -34,6 +34,7 @@
         add: function () { return Promise.resolve({ ok: false, error: "โหมดสาธิต" }); },
         update: function () { return Promise.resolve({ ok: true }); },
         remove: function () { return Promise.resolve({ ok: true }); },
+        setPassword: function () { return Promise.resolve({ ok: false, error: "โหมดสาธิต" }); },
       },
     };
     return;
@@ -304,6 +305,23 @@
     async remove(id) {
       var r = await sb.from("app_users").delete().eq("id", id);
       return r.error ? { ok: false, error: r.error.message } : { ok: true };
+    },
+    // เปลี่ยน/รีเซ็ตรหัสผ่านของผู้ใช้
+    //  - ของตัวเอง: ใช้ updateUser (session ยังอยู่)
+    //  - ของผู้อื่น: ผ่าน Edge Function ที่ใช้ service_role ฝั่งเซิร์ฟเวอร์
+    async setPassword(userId, password) {
+      if (!password || String(password).length < 6) return { ok: false, error: "รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร" };
+      try {
+        var cur = (await sb.auth.getUser()).data.user;
+        if (cur && cur.id === userId) {
+          var u = await sb.auth.updateUser({ password: password });
+          return u.error ? { ok: false, error: u.error.message } : { ok: true };
+        }
+        var r = await sb.functions.invoke("set-user-password", { body: { userId: userId, password: password } });
+        if (r.error) return { ok: false, error: "เปลี่ยนรหัสผ่านไม่สำเร็จ: " + r.error.message };
+        if (r.data && r.data.ok === false) return { ok: false, error: r.data.error || "เปลี่ยนรหัสผ่านไม่สำเร็จ" };
+        return { ok: true };
+      } catch (e) { return { ok: false, error: String(e) }; }
     },
   };
 

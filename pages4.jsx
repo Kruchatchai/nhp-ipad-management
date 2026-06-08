@@ -359,12 +359,16 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
       if (LIVE) {
         const r = await window.SB.users.update(editUser.id, { name: f.name, username: f.username, role: f.role, twofa: !!f.twofa });
         if (!r.ok) { toast(r.error || "แก้ไขไม่สำเร็จ", "alert"); return; }
+        if (f.newPassword) {
+          const pr = await window.SB.users.setPassword(editUser.id, f.newPassword);
+          if (!pr.ok) { toast(pr.error || "เปลี่ยนรหัสผ่านไม่สำเร็จ", "alert"); return; }
+        }
         await window.SB.hydrate();
       } else {
         setStore(st => ({ systemUsers: (st.systemUsers || []).map(u => u.id === editUser.id ? { ...u, ...f, roleCls: roleCls[f.role] || u.roleCls } : u) }));
       }
-      logAction("แก้ไขข้อมูล", "ผู้ใช้ระบบ " + (f.name || editUser.name), "b-warn", undefined, "settings");
-      toast("บันทึกการแก้ไขแล้ว");
+      logAction("แก้ไขข้อมูล", "ผู้ใช้ระบบ " + (f.name || editUser.name) + (f.newPassword ? " (เปลี่ยนรหัสผ่าน)" : ""), "b-warn", undefined, "settings");
+      toast(f.newPassword ? "บันทึกและเปลี่ยนรหัสผ่านแล้ว" : "บันทึกการแก้ไขแล้ว");
     } else {
       if (LIVE) {
         if (!f.email || !f.password) { toast("กรุณากรอกอีเมลและรหัสผ่าน", "alert"); return; }
@@ -539,6 +543,9 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
                   <div className="field"><label>รหัสผ่าน</label><input className="input" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" onChange={e => userForm.current.password = e.target.value} /></div>
                   <div className="field"><label>ยืนยันรหัสผ่าน</label><input className="input" type="password" placeholder="••••••••" onChange={e => userForm.current.password2 = e.target.value} /></div>
                 </>}
+                {editUser && (
+                  <div className="field"><label>เปลี่ยนรหัสผ่าน <span style={{ color: "var(--text-3)", fontWeight: 400 }}>(เว้นว่างถ้าไม่เปลี่ยน)</span></label><input className="input" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" onChange={e => userForm.current.newPassword = e.target.value} /></div>
+                )}
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 400 }}>
