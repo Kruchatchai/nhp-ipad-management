@@ -13,8 +13,8 @@
  * ===================================================================== */
 (function () {
   // --- กรอกค่าตรงนี้ ---
-  var SUPABASE_URL = "";        // เช่น "https://abcdefgh.supabase.co"
-  var SUPABASE_ANON_KEY = "";   // เช่น "eyJhbGciOi..."
+  var SUPABASE_URL = "https://rsxjtcfcbooaiqzjymhf.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzeGp0Y2ZjYm9vYWlxemp5bWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MTI2ODksImV4cCI6MjA5NjQ4ODY4OX0.BRQhlgI-xJ7MgJdZBvcVESm2HY1cMJZU3_TaRWG-3-w";
 
   // เผื่อกรณีอยากตั้งค่าชั่วคราวผ่าน localStorage (ไม่ต้องแก้ไฟล์):
   //   localStorage.setItem('nhp-supabase-url', 'https://xxx.supabase.co')
