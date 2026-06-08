@@ -30,6 +30,11 @@
       loadSnapshot: function () { return Promise.resolve(window.NHP); },
       saveAudit: function () { return Promise.resolve(); },
       db: {},
+      users: {
+        add: function () { return Promise.resolve({ ok: false, error: "โหมดสาธิต" }); },
+        update: function () { return Promise.resolve({ ok: true }); },
+        remove: function () { return Promise.resolve({ ok: true }); },
+      },
     };
     return;
   }
@@ -61,13 +66,16 @@
       sb.from("borrows").select("*"),
       sb.from("repairs").select("*"),
       sb.from("repair_types").select("*"),
+      sb.from("academic_years").select("*").order("year", { ascending: false }),
+      sb.from("app_users").select("*").order("created_at"),
     ]);
     for (var i = 0; i < res.length; i++) {
       if (res[i].error) throw new Error(res[i].error.message);
     }
     var subjects = res[0].data || [], deviceTypes = res[1].data || [], accessories = res[2].data || [],
         students = res[3].data || [], teachers = res[4].data || [], devices = res[5].data || [],
-        borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [];
+        borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [],
+        academicYears = res[9].data || [], appUsers = res[10].data || [];
 
     // lookup tables
     var typeName = {}; deviceTypes.forEach(function (t) { typeName[t.id] = t.name; });
@@ -111,9 +119,27 @@
     var mRepairTypes = repairTypes.filter(function (r) { return r.scope === "device"; }).map(function (r) { return r.name; });
     if (!mRepairTypes.length) mRepairTypes = ["หน้าจอแตก", "แบตเตอรี่เสื่อม", "เปิดไม่ติด", "อื่น ๆ"];
 
+    var mAccessories = accessories.map(function (a) {
+      return { id: a.id, name: a.name, qty: a.qty, damaged: a.damaged || 0, lost: a.lost || 0, note: a.note || "" };
+    });
+    var mYears = academicYears.map(function (y) {
+      return { id: y.id, year: y.year, label: "ปีการศึกษา " + y.year, current: !!y.is_current,
+               students: y.is_current ? students.length : 0, devices: y.is_current ? devices.length : 0 };
+    });
+    var ROLE_CLS = { "Super Admin": "b-danger", "Admin / ICT": "b-info", "ครู": "b-purple", "นักเรียน": "b-muted" };
+    var mUsers = appUsers.map(function (u) {
+      return { id: u.id, name: u.name || u.email, username: u.username || "", email: u.email,
+               role: u.role, roleCls: ROLE_CLS[u.role] || "b-info",
+               last: u.last_login ? String(u.last_login).slice(0, 16).replace("T", " ") : "—",
+               active: u.active !== false, twofa: !!u.twofa };
+    });
+
+    var curYear = (mYears.filter(function (y) { return y.current; })[0] || {}).year;
+
     return {
       students: mStudents, teachers: mTeachers, devices: mDevices, borrows: mBorrows,
       repairs: mRepairs, repairTypes: mRepairTypes, subjects: subjects.map(function (s) { return s.name; }),
+      accessories: mAccessories, academicYears: mYears, systemUsers: mUsers, year: curYear,
     };
   }
 
@@ -127,8 +153,9 @@
 
   // ---- อ่านบทบาท (role) ของผู้ใช้ปัจจุบันจากตาราง app_users ----
   async function fetchProfile(uid) {
-    var r = await sb.from("app_users").select("name, role, active").eq("id", uid).single();
-    if (r.error || !r.data) return { role: "ครู", name: "", active: true };
+    var r = await sb.from("app_users").select("name, role, active").eq("id", uid).maybeSingle();
+    if (r.error) return { role: "ครู", name: "", active: true };   // network error — อย่าล็อกผู้ใช้ออก
+    if (!r.data) return { missing: true };                         // ไม่มีแถว = ถูกลบสิทธิ์
     return r.data;
   }
 
@@ -137,6 +164,7 @@
       var r = await sb.auth.signInWithPassword({ email: email, password: password });
       if (r.error) return { ok: false, error: r.error.message };
       var prof = await fetchProfile(r.data.user.id);
+      if (prof.missing) { await sb.auth.signOut(); return { ok: false, error: "บัญชีนี้ไม่มีสิทธิ์เข้าใช้งานระบบ" }; }
       if (prof.active === false) { await sb.auth.signOut(); return { ok: false, error: "บัญชีนี้ถูกระงับการใช้งาน" }; }
       // อัปเดตเวลาล็อกอินล่าสุด (ไม่ critical ถ้า fail)
       sb.from("app_users").update({ last_login: new Date().toISOString() }).eq("id", r.data.user.id).then(function () {});
@@ -198,6 +226,12 @@
       holder_level: nn(d.holderLevel), note: nn(d.note) };
   }
 
+  function rowAccessory(a) {
+    return { id: a.id, name: a.name, qty: Number(a.qty) || 0, damaged: Number(a.damaged) || 0,
+      lost: Number(a.lost) || 0, note: nn(a.note) };
+  }
+  function rowYear(y) { return { id: y.id, year: String(y.year), is_current: !!y.current }; }
+
   function indexById(arr) { var m = {}; (arr || []).forEach(function (x) { if (x && x.id != null) m[x.id] = x; }); return m; }
 
   async function syncTable(table, beforeArr, afterArr, toRow) {
@@ -226,8 +260,41 @@
     if (before.students !== after.students) jobs.push(syncTable("students", before.students, after.students, rowStudent));
     if (before.teachers !== after.teachers) jobs.push(syncTable("teachers", before.teachers, after.teachers, rowTeacher));
     if (before.ipads !== after.ipads) jobs.push(syncTable("devices", before.ipads, after.ipads, rowDevice));
+    if (before.accessories !== after.accessories) jobs.push(syncTable("accessories", before.accessories, after.accessories, rowAccessory));
+    if (before.academicYears !== after.academicYears) jobs.push(syncTable("academic_years", before.academicYears, after.academicYears, rowYear));
     return Promise.all(jobs).catch(function (e) { window.SB.lastSyncError = String(e); console.error("[NHP sync]", e); });
   }
 
-  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff };
+  // ---- จัดการผู้ใช้ระบบ (app_users + auth) ----
+  var users = {
+    // เพิ่มผู้ใช้ใหม่ = สร้างบัญชี auth (ใช้ client ชั่วคราวเพื่อไม่ให้ session ผู้ดูแลหลุด) แล้วตั้ง role
+    async add(o) {
+      if (!o.email || !o.password) return { ok: false, error: "กรุณากรอกอีเมลและรหัสผ่าน" };
+      if (String(o.password).length < 6) return { ok: false, error: "รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร" };
+      try {
+        var tmp = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+        var r = await tmp.auth.signUp({ email: o.email, password: o.password, options: { data: { name: o.name || o.email } } });
+        if (r.error) return { ok: false, error: r.error.message };
+        var uid = r.data.user && r.data.user.id;
+        if (!uid) return { ok: false, error: "สร้างบัญชีไม่สำเร็จ" };
+        var up = await sb.from("app_users").update({
+          role: o.role || "ครู", name: o.name || o.email,
+          username: o.username || String(o.email).split("@")[0], twofa: !!o.twofa, active: true,
+        }).eq("id", uid);
+        if (up.error) return { ok: false, error: up.error.message };
+        return { ok: true, id: uid };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    },
+    async update(id, patch) {
+      var r = await sb.from("app_users").update(patch).eq("id", id);
+      return r.error ? { ok: false, error: r.error.message } : { ok: true };
+    },
+    // ลบสิทธิ์ผู้ใช้ (ลบแถว app_users -> ล็อกอินไม่ได้อีกเพราะ signIn ต้องมีแถวสิทธิ์)
+    async remove(id) {
+      var r = await sb.from("app_users").delete().eq("id", id);
+      return r.error ? { ok: false, error: r.error.message } : { ok: true };
+    },
+  };
+
+  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff, users: users };
 })();

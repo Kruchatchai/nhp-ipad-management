@@ -220,7 +220,9 @@
     students: D.students.slice(),
     teachers: D.teachers.slice(),
     ipads,
-    accessories: accDefaults,
+    accessories: D.accessories || accDefaults,
+    academicYears: D.academicYears || [],
+    systemUsers: D.systemUsers || [],
     borrows: repairedBorrows,
     repairs: repairs.filter(r => ipadTags.has(r.device)),  // iPad repair tickets only (reconciles with dashboard)
     accRepairs: buildAccRepairs(repairedBorrows, accDefaults),  // accessory repair tickets (separate board)
@@ -233,7 +235,7 @@
     personStatus,        // key "s:<id>" / "t:<id>" -> usage status
     logo: "assets/logo.png",
     drive: loadDrive(),
-    year: _settings.year,
+    year: D.year || _settings.year,
     school: _settings.school,
     gradHolders: [],     // graduated students still holding a device (kept for tracking)
     deviceEvents: {},    // assetTag -> [{holder, level, from, to, days, kind}] real borrow/return/repair events

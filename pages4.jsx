@@ -317,9 +317,11 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
   const [addUser, setAddUser] = useState(false);
   const [restoreData, setRestoreData] = useState(null);
   const [editUser, setEditUser] = useState(null);
-  const [users, setUsers] = useState(DD.systemUsers);
+  const LIVE = !!(window.NHP_CONFIG && window.NHP_CONFIG.live);
+  const users = store.systemUsers && store.systemUsers.length ? store.systemUsers : DD.systemUsers;
   const [delUser, setDelUser] = useState(null);
-  const [years, setYears] = useState(DD.academicYears.map(y => ({ ...y, current: y.year === store.year })));
+  const years = ((store.academicYears && store.academicYears.length ? store.academicYears : DD.academicYears) || [])
+    .map(y => ({ ...y, current: !!y.current || y.year === store.year }));
   const [addYear, setAddYear] = useState(false);
   const [viewYear, setViewYear] = useState(null);
   const [delYear, setDelYear] = useState(null);
@@ -344,24 +346,45 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
   };
 
   const roleCls = { "Super Admin": "b-danger", "Admin / ICT": "b-info", "ครู": "b-purple", "นักเรียน": "b-muted" };
-  const saveUser = () => {
+  const saveUser = async () => {
     const f = userForm.current;
-    if (editUser) { setUsers(users.map(u => u.id === editUser.id ? { ...u, ...f, roleCls: roleCls[f.role] || u.roleCls } : u)); toast("บันทึกการแก้ไขแล้ว"); }
-    else { setUsers([...users, { id: Date.now(), name: f.name || "ผู้ใช้ใหม่", username: f.username || "user", email: f.email || "user@nhp.ac.th", role: f.role || "Admin / ICT", roleCls: roleCls[f.role] || "b-info", last: "—", active: true, twofa: !!f.twofa }]); toast("เพิ่มผู้ใช้งานเรียบร้อย"); }
+    if (editUser) {
+      if (LIVE) {
+        const r = await window.SB.users.update(editUser.id, { name: f.name, username: f.username, role: f.role, twofa: !!f.twofa });
+        if (!r.ok) { toast(r.error || "แก้ไขไม่สำเร็จ", "alert"); return; }
+        await window.SB.hydrate();
+      } else {
+        setStore(st => ({ systemUsers: (st.systemUsers || []).map(u => u.id === editUser.id ? { ...u, ...f, roleCls: roleCls[f.role] || u.roleCls } : u) }));
+      }
+      logAction("แก้ไขข้อมูล", "ผู้ใช้ระบบ " + (f.name || editUser.name), "b-warn", undefined, "settings");
+      toast("บันทึกการแก้ไขแล้ว");
+    } else {
+      if (LIVE) {
+        if (!f.email || !f.password) { toast("กรุณากรอกอีเมลและรหัสผ่าน", "alert"); return; }
+        if (f.password !== f.password2) { toast("รหัสผ่านยืนยันไม่ตรงกัน", "alert"); return; }
+        const r = await window.SB.users.add({ name: f.name, username: f.username, email: f.email, password: f.password, role: f.role || "ครู", twofa: !!f.twofa });
+        if (!r.ok) { toast(r.error || "เพิ่มผู้ใช้ไม่สำเร็จ", "alert"); return; }
+        await window.SB.hydrate();
+      } else {
+        setStore(st => ({ systemUsers: [...(st.systemUsers || []), { id: Date.now(), name: f.name || "ผู้ใช้ใหม่", username: f.username || "user", email: f.email || "user@nhp.ac.th", role: f.role || "Admin / ICT", roleCls: roleCls[f.role] || "b-info", last: "—", active: true, twofa: !!f.twofa }] }));
+      }
+      logAction("เพิ่มผู้ใช้งาน", (f.name || f.email) + " (" + (f.role || "ครู") + ")", "b-ok", undefined, "settings");
+      toast("เพิ่มผู้ใช้งานเรียบร้อย");
+    }
     setAddUser(false); setEditUser(null);
   };
   const saveYear = () => {
     const f = yearForm.current;
     if (!f.year) { toast("กรุณาระบุปีการศึกษา", "alert"); return; }
     if (years.some(y => y.year === f.year)) { toast("มีปีการศึกษานี้อยู่แล้ว", "alert"); return; }
-    let next = years.map(y => f.current ? { ...y, current: false } : y);
-    setYears([{ year: f.year, label: "ปีการศึกษา " + f.year, current: !!f.current, students: 0, devices: 0 }, ...next]);
+    setStore(st => ({ academicYears: [{ id: Date.now(), year: f.year, label: "ปีการศึกษา " + f.year, current: !!f.current, students: 0, devices: 0 }, ...(st.academicYears || []).map(y => f.current ? { ...y, current: false } : y)] }));
     if (f.current) window.setAcademicYear(f.year);
+    logAction("เพิ่มปีการศึกษา", "ปีการศึกษา " + f.year, "b-ok", undefined, "settings");
     setAddYear(false); toast("เพิ่มปีการศึกษา " + f.year + " เรียบร้อย");
   };
-  const setCurrentYear = (yr) => { setYears(years.map(y => ({ ...y, current: y.year === yr }))); window.setAcademicYear(yr); toast("กำหนดปีปัจจุบันเป็น ปีการศึกษา " + yr + " — ซิงค์ทั้งระบบแล้ว"); };
+  const setCurrentYear = (yr) => { setStore(st => ({ academicYears: (st.academicYears || []).map(y => ({ ...y, current: y.year === yr })) })); window.setAcademicYear(yr); toast("กำหนดปีปัจจุบันเป็น ปีการศึกษา " + yr + " — ซิงค์ทั้งระบบแล้ว"); };
   const doDeleteYear = () => {
-    setYears(years.filter(y => y.year !== delYear.year));
+    setStore(st => ({ academicYears: (st.academicYears || []).filter(y => y.year !== delYear.year) }));
     logAction("ลบรายการ", "ลบปีการศึกษา " + delYear.year, "b-danger", "ผู้ดูแลระบบ", "settings");
     toast("ลบปีการศึกษา " + delYear.year + " แล้ว", "trash");
     setDelYear(null);
@@ -506,8 +529,8 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
                   </select>
                 </div>
                 {!editUser && <>
-                  <div className="field"><label>รหัสผ่าน</label><input className="input" type="password" placeholder="••••••••" /></div>
-                  <div className="field"><label>ยืนยันรหัสผ่าน</label><input className="input" type="password" placeholder="••••••••" /></div>
+                  <div className="field"><label>รหัสผ่าน</label><input className="input" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" onChange={e => userForm.current.password = e.target.value} /></div>
+                  <div className="field"><label>ยืนยันรหัสผ่าน</label><input className="input" type="password" placeholder="••••••••" onChange={e => userForm.current.password2 = e.target.value} /></div>
                 </>}
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
@@ -521,7 +544,7 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
 
           {delUser && (
             <Modal title="ยืนยันการลบผู้ใช้งาน" onClose={() => setDelUser(null)}
-              footer={<><button className="btn" onClick={() => setDelUser(null)}>ยกเลิก</button><button className="btn btn-danger" onClick={() => { setUsers(users.filter(u => u.id !== delUser.id)); toast("ลบผู้ใช้งานแล้ว", "trash"); setDelUser(null); }}><Icon name="trash" size={16} />ลบผู้ใช้งาน</button></>}>
+              footer={<><button className="btn" onClick={() => setDelUser(null)}>ยกเลิก</button><button className="btn btn-danger" onClick={async () => { if (LIVE) { const r = await window.SB.users.remove(delUser.id); if (!r.ok) { toast(r.error || "ลบไม่สำเร็จ", "alert"); return; } await window.SB.hydrate(); } else { setStore(st => ({ systemUsers: (st.systemUsers || []).filter(u => u.id !== delUser.id) })); } logAction("ลบรายการ", "ผู้ใช้ระบบ " + delUser.name, "b-danger", undefined, "settings"); toast("ลบผู้ใช้งานแล้ว", "trash"); setDelUser(null); }}><Icon name="trash" size={16} />ลบผู้ใช้งาน</button></>}>
               <div style={{ display: "flex", gap: 13, alignItems: "center" }}>
                 <div className="stat-ic" style={{ background: "var(--danger-soft)", color: "var(--danger)", width: 48, height: 48, flexShrink: 0 }}><Icon name="alert" size={24} /></div>
                 <div>ต้องการลบบัญชี <b>{delUser.name}</b> (@{delUser.username}) ใช่หรือไม่?</div>
