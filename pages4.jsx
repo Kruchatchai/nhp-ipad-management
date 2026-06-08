@@ -322,6 +322,7 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
     setRestoreData(null);
   };
   const [addUser, setAddUser] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const [restoreData, setRestoreData] = useState(null);
   const [editUser, setEditUser] = useState(null);
   const LIVE = !!(window.NHP_CONFIG && window.NHP_CONFIG.live);
@@ -540,11 +541,21 @@ function Settings({ go, theme, setTheme, primary, setPrimary, modules, setModule
                   </select>
                 </div>
                 {!editUser && <>
-                  <div className="field"><label>รหัสผ่าน</label><input className="input" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" onChange={e => userForm.current.password = e.target.value} /></div>
-                  <div className="field"><label>ยืนยันรหัสผ่าน</label><input className="input" type="password" placeholder="••••••••" onChange={e => userForm.current.password2 = e.target.value} /></div>
+                  <div className="field"><label>รหัสผ่าน</label>
+                    <div style={{ position: "relative" }}>
+                      <input className="input" type={showPw ? "text" : "password"} placeholder="อย่างน้อย 6 ตัวอักษร" style={{ paddingRight: 40 }} onChange={e => userForm.current.password = e.target.value} />
+                      <button type="button" onClick={() => setShowPw(v => !v)} title={showPw ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", cursor: "pointer", color: "var(--text-3)", display: "grid", placeItems: "center", padding: 4 }}><Icon name={showPw ? "eyeOff" : "eye"} size={17} /></button>
+                    </div>
+                  </div>
+                  <div className="field"><label>ยืนยันรหัสผ่าน</label><input className="input" type={showPw ? "text" : "password"} placeholder="••••••••" onChange={e => userForm.current.password2 = e.target.value} /></div>
                 </>}
                 {editUser && (
-                  <div className="field"><label>เปลี่ยนรหัสผ่าน <span style={{ color: "var(--text-3)", fontWeight: 400 }}>(เว้นว่างถ้าไม่เปลี่ยน)</span></label><input className="input" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" onChange={e => userForm.current.newPassword = e.target.value} /></div>
+                  <div className="field"><label>เปลี่ยนรหัสผ่าน <span style={{ color: "var(--text-3)", fontWeight: 400 }}>(เว้นว่างถ้าไม่เปลี่ยน)</span></label>
+                    <div style={{ position: "relative" }}>
+                      <input className="input" type={showPw ? "text" : "password"} placeholder="อย่างน้อย 6 ตัวอักษร" style={{ paddingRight: 40 }} onChange={e => userForm.current.newPassword = e.target.value} />
+                      <button type="button" onClick={() => setShowPw(v => !v)} title={showPw ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: 0, background: "transparent", cursor: "pointer", color: "var(--text-3)", display: "grid", placeItems: "center", padding: 4 }}><Icon name={showPw ? "eyeOff" : "eye"} size={17} /></button>
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="field" style={{ marginBottom: 0 }}>

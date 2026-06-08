@@ -46,6 +46,20 @@ function Login({ onLogin, loginBg, logo }) {
   const [showPw, setShowPw] = uS(false);
   const [err, setErr] = uS("");
   const [busy, setBusy] = uS(false);
+  const [fgErr, setFgErr] = uS("");
+  const [fgBusy, setFgBusy] = uS(false);
+  // ส่งลิงก์รีเซ็ตรหัสผ่านจริงไปยังอีเมลของบัญชีที่กรอก (live) — เด้งกลับมาที่เว็บนี้เพื่อตั้งรหัสใหม่
+  const sendReset = async () => {
+    const email = (fgUser || "").trim();
+    if (!email) return;
+    if (!LIVE) { setFgSent(true); return; }
+    setFgErr(""); setFgBusy(true);
+    const redirect = window.location.origin + window.location.pathname;
+    const r = await window.sb.auth.resetPasswordForEmail(email, { redirectTo: redirect });
+    setFgBusy(false);
+    if (r.error) { setFgErr(r.error.message || "ส่งลิงก์ไม่สำเร็จ"); return; }
+    setFgSent(true);
+  };
   // Demo: เลือกบทบาทแล้วเข้าได้เลย · Live: ยืนยันตัวตนกับ Supabase + ดึงข้อมูลจริง
   const doLogin = async () => {
     if (!LIVE) return onLogin(role);
@@ -105,7 +119,7 @@ function Login({ onLogin, loginBg, logo }) {
           {err && <div style={{ display: "flex", gap: 8, padding: 12, background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 11, fontSize: 13.5, marginBottom: 16 }}><Icon name="alert" size={17} style={{ flexShrink: 0 }} /><span>{err}</span></div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 22px", fontSize: 13.5 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--text-2)" }}><input type="checkbox" defaultChecked style={{ accentColor: "var(--primary)", width: 16, height: 16 }} />จดจำการเข้าสู่ระบบ</label>
-            <a style={{ color: "var(--primary)", fontWeight: 600, cursor: "pointer" }} onClick={() => { setForgot(true); setFgSent(false); setFgUser(u || "admin"); }}>ลืมรหัสผ่าน?</a>
+            <a style={{ color: "var(--primary)", fontWeight: 600, cursor: "pointer" }} onClick={() => { setForgot(true); setFgSent(false); setFgErr(""); setFgUser(LIVE ? (u || "") : (u || "admin")); }}>ลืมรหัสผ่าน?</a>
           </div>
           <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={busy || (LIVE && (!u.trim() || !p))} onClick={doLogin}><Icon name="logout" size={18} style={{ transform: "scaleX(-1)" }} />{busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}</button>
           {!LIVE && role === "Super Admin" && (
@@ -120,27 +134,28 @@ function Login({ onLogin, loginBg, logo }) {
         <Modal title="ลืมรหัสผ่าน" onClose={() => setForgot(false)}
           footer={fgSent
             ? <button className="btn btn-primary" onClick={() => setForgot(false)} style={{ marginLeft: "auto" }}><Icon name="check" size={16} />เข้าใจแล้ว</button>
-            : <><button className="btn" onClick={() => setForgot(false)}>ยกเลิก</button><button className="btn btn-primary" disabled={!fgUser.trim()} onClick={() => setFgSent(true)}><Icon name="logout" size={16} style={{ transform: "scaleX(-1)" }} />ส่งลิงก์รีเซ็ตรหัสผ่าน</button></>}>
+            : <><button className="btn" onClick={() => setForgot(false)}>ยกเลิก</button><button className="btn btn-primary" disabled={!fgUser.trim() || fgBusy} onClick={sendReset}><Icon name="logout" size={16} style={{ transform: "scaleX(-1)" }} />{fgBusy ? "กำลังส่ง…" : "ส่งลิงก์รีเซ็ตรหัสผ่าน"}</button></>}>
           {fgSent ? (
             <div style={{ textAlign: "center", padding: "8px 4px" }}>
               <div style={{ width: 60, height: 60, borderRadius: "50%", background: "var(--ok-soft)", color: "var(--ok)", display: "grid", placeItems: "center", margin: "0 auto 16px" }}><Icon name="check2" size={30} /></div>
               <h3 style={{ margin: "0 0 8px", fontSize: 18 }}>ส่งคำขอรีเซ็ตรหัสผ่านแล้ว</h3>
               <p style={{ color: "var(--text-2)", margin: 0, fontSize: 14, lineHeight: 1.6 }}>
-                ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านสำหรับบัญชี <b className="num">{fgUser}</b><br />
-                ไปยังอีเมลผู้ดูแลระบบ <b>ict@nhp.ac.th</b> แล้ว<br />
-                <span style={{ color: "var(--text-3)", fontSize: 13 }}>ลิงก์มีอายุ 30 นาที · กรุณาตรวจสอบกล่องจดหมาย</span>
+                ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมล<br />
+                <b className="num">{fgUser}</b> แล้ว<br />
+                <span style={{ color: "var(--text-3)", fontSize: 13 }}>ลิงก์มีอายุ 1 ชั่วโมง · กรุณาตรวจสอบกล่องจดหมาย (รวมถึงโฟลเดอร์สแปม)</span>
               </p>
               <div style={{ display: "flex", gap: 9, padding: 12, background: "var(--info-soft)", borderRadius: 11, color: "var(--info)", fontSize: 12.5, marginTop: 18, textAlign: "left" }}>
-                <Icon name="alert" size={16} style={{ flexShrink: 0 }} /><span>หากไม่ได้รับอีเมลภายใน 5 นาที กรุณาติดต่อผู้ดูแลระบบ ICT ของโรงเรียนโดยตรง</span>
+                <Icon name="alert" size={16} style={{ flexShrink: 0 }} /><span>เปิดอีเมลแล้วคลิกลิงก์เพื่อตั้งรหัสผ่านใหม่ ระบบจะพากลับมาที่หน้านี้</span>
               </div>
             </div>
           ) : (
             <div>
-              <p style={{ color: "var(--text-2)", margin: "0 0 16px", fontSize: 14, lineHeight: 1.6 }}>กรอกชื่อผู้ใช้หรืออีเมลที่ลงทะเบียนไว้ ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลผู้ดูแลระบบ</p>
+              <p style={{ color: "var(--text-2)", margin: "0 0 16px", fontSize: 14, lineHeight: 1.6 }}>กรอกอีเมลของบัญชีที่ลงทะเบียนไว้ ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปยัง<b>อีเมลนั้นโดยตรง</b></p>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label>ชื่อผู้ใช้ / อีเมล</label>
-                <div className="filter-input" style={{ height: 44 }}><Icon name="user" size={17} style={{ color: "var(--text-3)" }} /><input value={fgUser} onChange={e => setFgUser(e.target.value)} placeholder="เช่น admin หรือ name@nhp.ac.th" autoFocus /></div>
+                <label>อีเมล</label>
+                <div className="filter-input" style={{ height: 44 }}><Icon name="user" size={17} style={{ color: "var(--text-3)" }} /><input type="email" value={fgUser} onChange={e => setFgUser(e.target.value)} placeholder="name@nhp.ac.th" autoFocus onKeyDown={e => { if (e.key === "Enter") sendReset(); }} /></div>
               </div>
+              {fgErr && <div style={{ display: "flex", gap: 8, padding: 11, background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 10, fontSize: 13, marginTop: 12 }}><Icon name="alert" size={16} style={{ flexShrink: 0 }} /><span>{fgErr}</span></div>}
             </div>
           )}
         </Modal>
@@ -279,6 +294,10 @@ function App() {
   const [role, setRole] = uS(() => localStorage.getItem("nhp-role") || "Super Admin");
   const [userName, setUserName] = uS(() => localStorage.getItem("nhp-username-display") || "");
   const [booting, setBooting] = uS(LIVE);
+  const [recovery, setRecovery] = uS(false);
+  const [recovPw, setRecovPw] = uS("");
+  const [recovErr, setRecovErr] = uS("");
+  const [recovBusy, setRecovBusy] = uS(false);
   // ชื่อที่แสดงจริง: จากบัญชีที่ login (app_users) > ค่าเริ่มต้นตามบทบาท
   const displayName = userName || USER_NAMES[role] || (role === "Super Admin" ? "ผู้ดูแลระบบ" : role);
   const [page, setPage] = uS(() => localStorage.getItem("nhp-page") || "dashboard");
@@ -332,6 +351,26 @@ function App() {
     }).catch(() => { if (alive) setBooting(false); });
     return () => { alive = false; };
   }, []);
+  // Live: ผู้ใช้คลิกลิงก์รีเซ็ตรหัสผ่านจากอีเมล → เข้าโหมดตั้งรหัสผ่านใหม่
+  uE(() => {
+    if (!LIVE) return;
+    if (/type=recovery/.test(window.location.hash)) { setRecovery(true); setBooting(false); }
+    const sub = window.sb.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") { setRecovery(true); setBooting(false); }
+    });
+    return () => { try { sub.data.subscription.unsubscribe(); } catch (e) {} };
+  }, []);
+  const submitRecovery = async () => {
+    if (!recovPw || recovPw.length < 6) { setRecovErr("รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร"); return; }
+    setRecovErr(""); setRecovBusy(true);
+    const r = await window.sb.auth.updateUser({ password: recovPw });
+    setRecovBusy(false);
+    if (r.error) { setRecovErr(r.error.message || "ตั้งรหัสผ่านไม่สำเร็จ"); return; }
+    try { history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    setRecovery(false); setRecovPw("");
+    const prof = await window.SB.auth.restore();
+    if (prof && prof.session) { setRole(prof.role); setUserName(prof.name || ""); await window.SB.hydrate(); setAuthed(true); }
+  };
   uE(() => {
     document.documentElement.style.setProperty("--primary", primary);
     document.documentElement.style.setProperty("--brand-sky", primary);
@@ -344,6 +383,21 @@ function App() {
     if (LIVE && window.SB) window.SB.auth.signOut();
     setAuthed(false);
   };
+
+  if (recovery) return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--bg)", padding: 20 }}>
+      <div className="card card-pad" style={{ width: "100%", maxWidth: 400 }}>
+        <div style={{ width: 54, height: 54, borderRadius: 14, background: "var(--primary-soft)", color: "var(--primary)", display: "grid", placeItems: "center", marginBottom: 14 }}><Icon name="lock" size={26} /></div>
+        <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 700 }}>ตั้งรหัสผ่านใหม่</h2>
+        <p style={{ color: "var(--text-3)", margin: "0 0 20px", fontSize: 14 }}>กรอกรหัสผ่านใหม่สำหรับบัญชีของคุณ</p>
+        <div className="field"><label>รหัสผ่านใหม่</label>
+          <div className="filter-input" style={{ height: 44 }}><Icon name="lock" size={17} style={{ color: "var(--text-3)" }} /><input type="password" value={recovPw} onChange={e => setRecovPw(e.target.value)} placeholder="อย่างน้อย 6 ตัวอักษร" autoFocus onKeyDown={e => { if (e.key === "Enter") submitRecovery(); }} /></div>
+        </div>
+        {recovErr && <div style={{ display: "flex", gap: 8, padding: 11, background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 10, fontSize: 13, marginBottom: 14 }}><Icon name="alert" size={16} style={{ flexShrink: 0 }} /><span>{recovErr}</span></div>}
+        <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={recovBusy || !recovPw} onClick={submitRecovery}><Icon name="check" size={18} />{recovBusy ? "กำลังบันทึก…" : "บันทึกรหัสผ่านใหม่"}</button>
+      </div>
+    </div>
+  );
 
   if (booting) return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--bg)", color: "var(--text-2)" }}>
