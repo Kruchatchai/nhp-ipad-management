@@ -59,7 +59,6 @@
       sb.from("teachers").select("*").order("code"),
       sb.from("devices").select("*").order("asset_tag"),
       sb.from("borrows").select("*"),
-      sb.from("borrow_accessories").select("*"),
       sb.from("repairs").select("*"),
       sb.from("repair_types").select("*"),
     ]);
@@ -68,54 +67,46 @@
     }
     var subjects = res[0].data || [], deviceTypes = res[1].data || [], accessories = res[2].data || [],
         students = res[3].data || [], teachers = res[4].data || [], devices = res[5].data || [],
-        borrows = res[6].data || [], borrowAcc = res[7].data || [], repairs = res[8].data || [],
-        repairTypes = res[9].data || [];
+        borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [];
 
     // lookup tables
-    var subjById = {}; subjects.forEach(function (s) { subjById[s.id] = s.name; });
     var typeName = {}; deviceTypes.forEach(function (t) { typeName[t.id] = t.name; });
-    var accById = {}; accessories.forEach(function (a) { accById[a.id] = a; });
     var devById = {}; devices.forEach(function (d) { devById[d.id] = d; });
-    var accByBorrow = {};
-    borrowAcc.forEach(function (ba) {
-      (accByBorrow[ba.borrow_id] = accByBorrow[ba.borrow_id] || []).push({
-        id: ba.accessory_id, name: (accById[ba.accessory_id] || {}).name || "", qty: ba.qty,
-      });
-    });
-
     var today = new Date();
 
     var mStudents = students.map(function (s) {
-      return { id: s.id, code: s.student_code, prefix: s.prefix, first: s.first_name, last: s.last_name,
-               sex: s.sex, level: s.level, room: s.room, no: s.no, status: s.status, photo: s.photo_url };
+      return { id: s.id, code: s.student_code, citizen: s.citizen, prefix: s.prefix, first: s.first_name,
+               last: s.last_name, sex: s.sex, level: s.level, room: s.room, no: s.no, phone: s.phone,
+               parent: s.parent, parentPhone: s.parent_phone, graduated: !!s.graduated, status: s.status,
+               academicYear: s.academic_year };
     });
     var mTeachers = teachers.map(function (t) {
       return { id: t.id, code: t.code, prefix: t.prefix, first: t.first_name, last: t.last_name,
-               sex: t.sex, subject: subjById[t.subject_id] || "", homeroom: t.homeroom,
-               status: t.status, email: t.email, photo: t.photo_url };
+               sex: t.sex, subject: t.subject || "", role: t.role, homeroom: t.homeroom,
+               status: t.status, email: t.email, phone: t.phone };
     });
     var mDevices = devices.map(function (d) {
-      return { id: d.id, assetTag: d.asset_tag, code: "", serial: d.serial, type: d.type,
-               typeName: typeName[d.type] || d.type, brand: "", model: d.model, color: "", cap: "",
-               budgetYear: "", receivedDate: d.purchased_at, price: "",
-               status: d.status, statusCls: devCls(d.status), holder: null, holderLevel: null,
-               accessories: [], note: d.note || "" };
+      return { id: d.id, assetTag: d.asset_tag, code: d.inv_code, serial: d.serial, type: d.type,
+               typeName: d.type_name || typeName[d.type] || d.type, brand: d.brand, model: d.model,
+               color: d.color, cap: d.capacity, budgetYear: d.budget_year, receivedDate: d.received_date,
+               price: d.price, status: d.status, statusCls: d.status_cls || devCls(d.status),
+               holder: d.holder, holderLevel: d.holder_level, accessories: [], note: d.note || "" };
     });
     var mBorrows = borrows.map(function (b) {
       var dev = devById[b.device_id] || {};
       var due = b.due_date ? new Date(b.due_date) : null;
       var overdue = due ? daysBetween(today, due) : 0;
-      return { id: b.id, device: dev.asset_tag, deviceId: b.device_id, model: dev.model,
+      return { id: b.id, device: dev.asset_tag || b.asset_tag, deviceId: b.device_id, model: dev.model,
                type: typeName[dev.type] || "", holder: b.holder_name, level: b.level,
                borrowDate: b.borrow_date, dueDate: b.due_date, overdueDays: overdue,
                status: b.status, approver: "", borrowerKind: b.borrower_kind, borrowerId: b.borrower_id,
-               accessories: accByBorrow[b.id] || [] };
+               accessories: [] };
     });
     var mRepairs = repairs.map(function (r) {
       var dev = devById[r.device_id] || {};
-      return { id: r.id, ticket: r.ticket, device: dev.asset_tag, model: dev.model, type: r.type,
-               status: r.status, statusCls: repCls(r.status), reporter: r.reported_by,
-               date: r.reported_at, detail: r.note || "" };
+      return { id: r.id, ticket: r.ticket, device: dev.asset_tag || r.asset_tag, model: r.model || dev.model, type: r.type,
+               status: r.status, statusCls: r.status_cls || repCls(r.status), reporter: r.reporter,
+               date: r.report_date, detail: r.note || "" };
     });
     var mRepairTypes = repairTypes.filter(function (r) { return r.scope === "device"; }).map(function (r) { return r.name; });
     if (!mRepairTypes.length) mRepairTypes = ["หน้าจอแตก", "แบตเตอรี่เสื่อม", "เปิดไม่ติด", "อื่น ๆ"];
@@ -180,5 +171,63 @@
     remove: function (table, id) { return sb.from(table).delete().eq("id", id); },
   };
 
-  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db };
+  // =====================================================================
+  //  Auto-sync (write-through): diff snapshot ก่อน/หลังแต่ละ Store.update
+  //  แล้ว insert / update / delete ลงฐานข้อมูลให้อัตโนมัติ
+  //  ครอบคลุม: นักเรียน · ครู · อุปกรณ์ (iPad) — บันทึกถาวรทันที
+  // =====================================================================
+  function nn(v) { return v === undefined ? null : v; }
+  // UI object -> DB row (เฉพาะคอลัมน์ที่ DB เก็บ)
+  function rowStudent(s) {
+    return { id: s.id, student_code: nn(s.code), citizen: nn(s.citizen), prefix: nn(s.prefix),
+      first_name: s.first, last_name: s.last, sex: nn(s.sex), level: s.level, room: Number(s.room) || 0,
+      no: nn(s.no), phone: nn(s.phone), parent: nn(s.parent), parent_phone: nn(s.parentPhone),
+      graduated: !!s.graduated, status: nn(s.status) || "กำลังศึกษา", academic_year: nn(s.academicYear) };
+  }
+  function rowTeacher(t) {
+    return { id: t.id, code: nn(t.code), prefix: nn(t.prefix), first_name: t.first, last_name: t.last,
+      sex: nn(t.sex), subject: nn(t.subject), role: nn(t.role), homeroom: nn(t.homeroom),
+      email: nn(t.email), phone: nn(t.phone), status: nn(t.status) || "ปฏิบัติงาน" };
+  }
+  function rowDevice(d) {
+    return { id: d.id, asset_tag: d.assetTag, inv_code: nn(d.code), type: d.type || "ipad",
+      type_name: nn(d.typeName), brand: nn(d.brand), model: nn(d.model), color: nn(d.color),
+      capacity: nn(d.cap), serial: nn(d.serial), budget_year: d.budgetYear ? Number(d.budgetYear) : null,
+      price: (d.price === "" || d.price == null) ? null : Number(d.price), received_date: nn(d.receivedDate),
+      status: nn(d.status) || "พร้อมใช้งาน", status_cls: nn(d.statusCls), holder: nn(d.holder),
+      holder_level: nn(d.holderLevel), note: nn(d.note) };
+  }
+
+  function indexById(arr) { var m = {}; (arr || []).forEach(function (x) { if (x && x.id != null) m[x.id] = x; }); return m; }
+
+  async function syncTable(table, beforeArr, afterArr, toRow) {
+    var a = indexById(beforeArr), b = indexById(afterArr);
+    var ins = [], upd = [], del = [], id;
+    for (id in b) {
+      if (!(id in a)) ins.push(b[id]);
+      else if (JSON.stringify(toRow(a[id])) !== JSON.stringify(toRow(b[id]))) upd.push(b[id]);
+    }
+    for (id in a) { if (!(id in b)) del.push(Number(id)); }
+    var ops = [];
+    if (ins.length) ops.push(sb.from(table).insert(ins.map(toRow)));
+    upd.forEach(function (x) { ops.push(sb.from(table).update(toRow(x)).eq("id", x.id)); });
+    if (del.length) ops.push(sb.from(table).delete().in("id", del));
+    if (!ops.length) return;
+    var results = await Promise.all(ops);
+    results.forEach(function (r) {
+      if (r && r.error) { window.SB.lastSyncError = r.error.message; console.error("[NHP sync] " + table + ": " + r.error.message); }
+    });
+  }
+
+  // diff ทั้ง snapshot (เรียกจาก store หลัง update). ข้าม table ที่ไม่เปลี่ยน (อ้างอิงเท่ากัน)
+  function syncDiff(before, after) {
+    if (!before || !after) return;
+    var jobs = [];
+    if (before.students !== after.students) jobs.push(syncTable("students", before.students, after.students, rowStudent));
+    if (before.teachers !== after.teachers) jobs.push(syncTable("teachers", before.teachers, after.teachers, rowTeacher));
+    if (before.ipads !== after.ipads) jobs.push(syncTable("devices", before.ipads, after.ipads, rowDevice));
+    return Promise.all(jobs).catch(function (e) { window.SB.lastSyncError = String(e); console.error("[NHP sync]", e); });
+  }
+
+  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff };
 })();

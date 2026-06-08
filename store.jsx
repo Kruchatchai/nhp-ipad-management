@@ -247,7 +247,13 @@
   let s = build(window.__REMOTE_DATA__ || window.NHP || EMPTY);
   window.Store = {
     snapshot: () => s,
-    update: (patch) => { s = { ...s, ...(typeof patch === "function" ? patch(s) : patch) }; subs.forEach(f => f()); },
+    update: (patch) => {
+      const before = s;
+      s = { ...s, ...(typeof patch === "function" ? patch(s) : patch) };
+      subs.forEach(f => f());
+      // Live mode: เขียนการเปลี่ยนแปลงกลับฐานข้อมูลอัตโนมัติ (insert/update/delete)
+      if (window.SB && window.SB.live && window.SB.syncDiff) window.SB.syncDiff(before, s);
+    },
     subscribe: (f) => { subs.add(f); return () => subs.delete(f); },
     // re-build the whole snapshot from a fresh data source (used after Supabase login)
     hydrate: (D) => { s = build(D || EMPTY); subs.forEach(f => f()); },

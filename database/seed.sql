@@ -32,12 +32,12 @@ insert into subjects (name) values
 on conflict (name) do nothing;
 
 -- อุปกรณ์เสริม (คลังรวม)
-insert into accessories (name, total) values
+insert into accessories (name, qty) values
   ('สายชาร์จ USB-C', 95),
   ('อะแดปเตอร์ 20W', 49),
-  ('เคส iPad', 120),
+  ('เคสกันกระแทก', 120),
   ('ฟิล์มกันรอย', 120),
-  ('ปากกา (Stylus)', 60)
+  ('Apple Pencil', 60)
 on conflict do nothing;
 
 -- ประเภทปัญหาการซ่อม — iPad
