@@ -633,7 +633,12 @@ function Students({ go, intent }) {
   const [store, setStore] = useStore();
   const students = store.students;
   const setStudents = (v) => setStore(st => ({ students: typeof v === "function" ? v(st.students) : v }));
-  const [rooms, setRooms] = useState(DB.rooms);
+  const rooms = (store.rooms && store.rooms.length ? store.rooms : (DB.rooms || [1, 2, 3, 4]));
+  const setRooms = (v) => {
+    const list = typeof v === "function" ? v(rooms) : v;
+    setStore({ rooms: list });
+    if (window.SB && window.SB.live) window.SB.saveSettings({ rooms: list });
+  };
   const [q, setQ] = useState("");
   const [level, setLevel] = useState("all");
   const [room, setRoom] = useState("all");

@@ -36,6 +36,7 @@
         remove: function () { return Promise.resolve({ ok: true }); },
         setPassword: function () { return Promise.resolve({ ok: false, error: "โหมดสาธิต" }); },
       },
+      saveSettings: function () { return Promise.resolve({ ok: true }); },
     };
     return;
   }
@@ -70,6 +71,7 @@
       sb.from("academic_years").select("*").order("year", { ascending: false }),
       sb.from("app_users").select("*").order("created_at"),
       sb.from("audit_log").select("*").order("at", { ascending: false }).limit(500),
+      sb.from("settings").select("*").eq("id", 1).maybeSingle(),
     ]);
     for (var i = 0; i < res.length; i++) {
       if (res[i].error) throw new Error(res[i].error.message);
@@ -77,7 +79,8 @@
     var subjects = res[0].data || [], deviceTypes = res[1].data || [], accessories = res[2].data || [],
         students = res[3].data || [], teachers = res[4].data || [], devices = res[5].data || [],
         borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [],
-        academicYears = res[9].data || [], appUsers = res[10].data || [], auditRows = res[11].data || [];
+        academicYears = res[9].data || [], appUsers = res[10].data || [], auditRows = res[11].data || [],
+        settingsRow = res[12].data || {};
 
     // lookup tables
     var typeName = {}; deviceTypes.forEach(function (t) { typeName[t.id] = t.name; });
@@ -110,7 +113,7 @@
                type: typeName[dev.type] || "", holder: b.holder_name, level: b.level,
                borrowDate: b.borrow_date, dueDate: b.due_date, overdueDays: overdue,
                status: b.status, approver: "", borrowerKind: b.borrower_kind, borrowerId: b.borrower_id,
-               accessories: [] };
+               accessories: b.accessories || [] };
     });
     var mRepairs = repairs.map(function (r) {
       var dev = devById[r.device_id] || {};
@@ -152,6 +155,7 @@
       students: mStudents, teachers: mTeachers, devices: mDevices, borrows: mBorrows,
       repairs: mRepairs, repairTypes: mRepairTypes, subjects: subjects.map(function (s) { return s.name; }),
       accessories: mAccessories, academicYears: mYears, systemUsers: mUsers, year: curYear, audit: mAudit,
+      rooms: (settingsRow && settingsRow.rooms) || [1, 2, 3, 4],
     };
   }
 
@@ -265,6 +269,20 @@
     });
   }
 
+  // กลุ่มสาระ = array ของชื่อ (string) → sync ตามชื่อ (เพิ่ม/ลบ)
+  async function syncSubjects(beforeArr, afterArr) {
+    var a = {}; (beforeArr || []).forEach(function (n) { a[n] = 1; });
+    var b = {}; (afterArr || []).forEach(function (n) { b[n] = 1; });
+    var add = (afterArr || []).filter(function (n) { return !a[n]; });
+    var del = (beforeArr || []).filter(function (n) { return !b[n]; });
+    var ops = [];
+    if (add.length) ops.push(sb.from("subjects").insert(add.map(function (n) { return { name: n }; })));
+    if (del.length) ops.push(sb.from("subjects").delete().in("name", del));
+    if (!ops.length) return;
+    var results = await Promise.all(ops);
+    results.forEach(function (r) { if (r && r.error) { window.SB.lastSyncError = r.error.message; console.error("[NHP sync] subjects: " + r.error.message); } });
+  }
+
   // diff ทั้ง snapshot (เรียกจาก store หลัง update). ข้าม table ที่ไม่เปลี่ยน (อ้างอิงเท่ากัน)
   function syncDiff(before, after) {
     if (!before || !after) return;
@@ -274,7 +292,14 @@
     if (before.ipads !== after.ipads) jobs.push(syncTable("devices", before.ipads, after.ipads, rowDevice));
     if (before.accessories !== after.accessories) jobs.push(syncTable("accessories", before.accessories, after.accessories, rowAccessory));
     if (before.academicYears !== after.academicYears) jobs.push(syncTable("academic_years", before.academicYears, after.academicYears, rowYear));
+    if (before.subjects !== after.subjects) jobs.push(syncSubjects(before.subjects, after.subjects));
     return Promise.all(jobs).catch(function (e) { window.SB.lastSyncError = String(e); console.error("[NHP sync]", e); });
+  }
+
+  // บันทึกการตั้งค่า (เช่น รายการห้องเรียน) ลงตาราง settings (แถวเดียว id=1)
+  async function saveSettings(patch) {
+    var r = await sb.from("settings").update(patch).eq("id", 1);
+    return r.error ? { ok: false, error: r.error.message } : { ok: true };
   }
 
   // ---- จัดการผู้ใช้ระบบ (app_users + auth) ----
@@ -325,5 +350,5 @@
     },
   };
 
-  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff, users: users };
+  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff, users: users, saveSettings: saveSettings };
 })();

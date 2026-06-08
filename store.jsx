@@ -223,6 +223,7 @@
     accessories: D.accessories || accDefaults,
     academicYears: D.academicYears || [],
     systemUsers: D.systemUsers || [],
+    rooms: D.rooms || (window.NHP && window.NHP.rooms) || [1, 2, 3, 4],
     borrows: repairedBorrows,
     repairs: repairs.filter(r => ipadTags.has(r.device)),  // iPad repair tickets only (reconciles with dashboard)
     accRepairs: buildAccRepairs(repairedBorrows, accDefaults),  // accessory repair tickets (separate board)
