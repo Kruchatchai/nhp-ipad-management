@@ -95,6 +95,15 @@ function Dashboard({ go }) {
   const inRepair = useMemo(() =>
     store.repairs.filter(r => r.status === "รอดำเนินการ" || r.status === "กำลังซ่อม").length,
   [store.repairs]);
+  // ===== ยืม–คืนรายเดือน: คำนวณจากข้อมูลจริงในระบบ =====
+  const MONTH_LABELS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const monthly = useMemo(() => {
+    const borrow = Array(12).fill(0), ret = Array(12).fill(0);
+    const mi = (iso) => { const d = window.parseISO(iso); return d ? d.getMonth() : -1; };
+    store.borrows.forEach(b => { const m = mi(b.borrowDate); if (m >= 0) borrow[m]++; });
+    (store.returnLog || []).forEach(r => { const m = mi(r.date); if (m >= 0) ret[m]++; });
+    return { borrow, ret };
+  }, [store.borrows, store.returnLog]);
   const s = {
     totalDevices: ipads.length,
     available: cnt("พร้อมใช้งาน"),
@@ -234,7 +243,7 @@ function Dashboard({ go }) {
             </div>
           </div>
           <div className="card-pad">
-            <BarLineChart labels={D.months} series={[{ data: D.monthlyBorrow }, { data: D.monthlyReturn }]} />
+            <BarLineChart labels={MONTH_LABELS} series={[{ data: monthly.borrow }, { data: monthly.ret }]} />
           </div>
         </div>
 
