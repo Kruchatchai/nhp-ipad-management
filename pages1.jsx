@@ -149,7 +149,7 @@ function Dashboard({ go }) {
   return (
     <div>
       <PageHead crumb={["หน้าหลัก"]} title="ภาพรวมระบบ"
-        desc={`ปีการศึกษา ${store.year} · ภาคเรียนที่ 1 · ข้อมูล ณ 5 มิ.ย. ${store.year}`}
+        desc={`ปีการศึกษา ${store.year} · ภาคเรียนที่ 1 · ข้อมูล ณ ${window.todayTH()}`}
         actions={<>
           <button className="btn" onClick={exportSummary}><Icon name="download" size={17} />ส่งออกสรุป</button>
           <button className="btn btn-primary" onClick={() => go("borrow")}><Icon name="plus" size={17} />ทำรายการยืม</button>
@@ -322,7 +322,7 @@ function DeviceDetail({ device: deviceProp, onClose, go, onEdit, toast }) {
       } else if (k === "ชำรุด" && !state.repairs.some(r => r.device === device.assetTag && (r.status === "รอดำเนินการ" || r.status === "กำลังซ่อม"))) {
         // flagged broken with no open ticket → open one so it appears on the repair board
         const n = (state.repairs || []).length + 1;
-        repairs = [{ id: Date.now() + Math.random(), ticket: "RP-" + String(n).padStart(4, "0"), device: device.assetTag, model: device.model, type: "แจ้งชำรุดจากคลัง", reporter: "ผู้ดูแลระบบ", date: "2569-06-05", status: "รอดำเนินการ", statusCls: "b-warn", detail: "เปลี่ยนสถานะเป็นชำรุดจากหน้าจัดการอุปกรณ์", photos: [] }, ...state.repairs];
+        repairs = [{ id: Date.now() + Math.random(), ticket: "RP-" + String(n).padStart(4, "0"), device: device.assetTag, model: device.model, type: "แจ้งชำรุดจากคลัง", reporter: "ผู้ดูแลระบบ", date: window.todayISO(), status: "รอดำเนินการ", statusCls: "b-warn", detail: "เปลี่ยนสถานะเป็นชำรุดจากหน้าจัดการอุปกรณ์", photos: [] }, ...state.repairs];
       }
       return {
         ipads: state.ipads.map(d => d.id === device.id ? { ...d, status: k, statusCls: st.cls } : d),
@@ -452,7 +452,7 @@ function Devices({ go, intent }) {
   const per = 12;
 
   const devHeaders = ["Asset Tag", "รหัสครุภัณฑ์", "Serial Number", "ประเภท", "ยี่ห้อ", "รุ่น", "สี", "ความจุ", "ปีงบประมาณ", "วันที่รับเข้า", "สถานะ", "ผู้ถือครอง"];
-  const devSample = ["NHP-IPD-200", "7440-001-0200", "F9XABC123", "iPad", "Apple", "iPad A16", "Silver", "128GB", "2569", "2569-06-05", "พร้อมใช้งาน", "-"];
+  const devSample = ["NHP-IPD-200", "7440-001-0200", "F9XABC123", "iPad", "Apple", "iPad A16", "Silver", "128GB", "2569", window.todayISO(), "พร้อมใช้งาน", "-"];
   const doExport = () => {
     exportExcel("คลังอุปกรณ์_NHP_2569", devHeaders, list.map(d => [d.assetTag, d.code, d.serial, d.typeName, d.brand, d.model, d.color, d.cap, d.budgetYear, d.receivedDate, d.status, d.holder || "-"]));
     toast("ส่งออก " + list.length + " รายการเป็น Excel");
@@ -520,7 +520,7 @@ function Devices({ go, intent }) {
       serial: (f.serial || (t.id.slice(0, 2).toUpperCase() + Math.random().toString(36).slice(2, 10).toUpperCase())),
       type: t.id, typeName: t.name, brand: f.brand || "Apple", model: f.model || t.name,
       color: f.color || "Silver", cap: f.cap || "128GB", budgetYear: +f.budgetYear || 2569,
-      receivedDate: f.receivedDate || "2569-06-05", price: f.price ? +f.price : null,
+      receivedDate: f.receivedDate || window.todayISO(), price: f.price ? +f.price : null,
       status: "พร้อมใช้งาน", statusCls: "b-ok", holder: null, holderLevel: null,
       accessories: [],
       note: f.note || "",
@@ -775,7 +775,7 @@ function Devices({ go, intent }) {
             const [assetTag, code, serial, typeName, brand, model, color, cap, budgetYear, receivedDate, status] = row.map(c => String(c).trim());
             if (!assetTag) return null;
             const typeMap = { "iPad": "ipad", "Notebook": "notebook", "Chromebook": "chromebook", "กล้อง": "camera" };
-            return { id: Date.now() + Math.floor(Math.random() * 1e6), assetTag, code: code || "-", serial: serial || "-", type: typeMap[typeName] || "ipad", typeName: typeName || "iPad", brand: brand || "Apple", model: model || "iPad", color: color || "Silver", cap: cap || "-", budgetYear: parseInt(budgetYear) || 2569, receivedDate: receivedDate || "2569-06-05", price: null, status: status || "พร้อมใช้งาน", statusCls: status === "ชำรุด" ? "b-danger" : status === "ส่งซ่อม" ? "b-warn" : status === "สูญหาย" ? "b-muted" : "b-ok", holder: null, holderLevel: null, accessories: [], note: "" };
+            return { id: Date.now() + Math.floor(Math.random() * 1e6), assetTag, code: code || "-", serial: serial || "-", type: typeMap[typeName] || "ipad", typeName: typeName || "iPad", brand: brand || "Apple", model: model || "iPad", color: color || "Silver", cap: cap || "-", budgetYear: parseInt(budgetYear) || 2569, receivedDate: receivedDate || window.todayISO(), price: null, status: status || "พร้อมใช้งาน", statusCls: status === "ชำรุด" ? "b-danger" : status === "ส่งซ่อม" ? "b-warn" : status === "สูญหาย" ? "b-muted" : "b-ok", holder: null, holderLevel: null, accessories: [], note: "" };
           }}
           keyOf={(d) => d.assetTag}
           onClose={() => setImportOpen(false)}

@@ -34,7 +34,7 @@ function Overdue({ go }) {
 
   const saveDue = () => {
     const nd = dueRef.current || editDue.dueDate;
-    const overdueDays = Math.floor((new Date(2026, 5, 5) - parseISO(nd)) / 86400000);
+    const overdueDays = Math.floor((parseISO(window.todayISO()) - parseISO(nd)) / 86400000);
     setRows(rows.map(r => r.id === editDue.id ? { ...r, dueDate: nd, overdueDays, status: overdueDays > 0 ? "เกินกำหนด" : overdueDays > -10 ? "ใกล้ครบกำหนด" : "ปกติ" } : r));
     toast("ปรับกำหนดคืนเป็น " + beShort(nd) + " แล้ว");
     setEditDue(null);
@@ -181,7 +181,7 @@ function Repairs({ go }) {
     const nd = {
       id: Date.now(), ticket: "RP-" + String(items.length + 1).padStart(4, "0"),
       device: repDevice.assetTag, model: repDevice.model, type: repType,
-      reporter: "ครู ICT", date: "2569-06-05", status: "รอดำเนินการ", statusCls: "b-warn",
+      reporter: "ครู ICT", date: window.todayISO(), status: "รอดำเนินการ", statusCls: "b-warn",
       detail: repDetail.current || "แจ้งโดยผู้ดูแลระบบ",
       photos: repPhotos.map(p => p.src || p),
     };
@@ -541,12 +541,18 @@ window.AccRepairBoard = AccRepairBoard;
 /* ===== QR Stickers ===== */
 function QRStickers({ go }) {
   const toast = React.useContext(ToastCtx);
+  const [store] = useStore();
+  const devices = store.ipads;
   const [perPage, setPerPage] = useState(30);
+  const [page, setPage] = useState(0);
   const [size, setSize] = useState("3x3");
   const [content, setContent] = useState({ logo: true, qr: true, asset: true, code: true });
   const layout = { 20: [4, 5], 30: [5, 6], 40: [5, 8], 50: [5, 10] };
   const [cols] = layout[perPage] || [5];
-  const sample = DC.devices.slice(0, perPage);
+  const totalPages = Math.max(1, Math.ceil(devices.length / perPage));
+  const curPage = Math.min(page, totalPages - 1);
+  const sample = devices.slice(curPage * perPage, (curPage + 1) * perPage);  // หน้าตัวอย่างปัจจุบัน
+  useEffect(() => { setPage(0); }, [perPage]);
   const sizePx = { "2x2": 58, "3x3": 76, "4x4": 96 }[size] || 76;
   const toggle = (k) => setContent(c => ({ ...c, [k]: !c[k] }));
 
@@ -559,7 +565,8 @@ function QRStickers({ go }) {
     </div>`;
 
   const doPrint = () => {
-    const cells = sample.map(d => stickerHTML(d, sizePx)).join("");
+    if (!devices.length) { toast("ยังไม่มีอุปกรณ์ในระบบ", "alert"); return; }
+    const cells = devices.map(d => stickerHTML(d, sizePx)).join("");  // พิมพ์ครบทุกเครื่อง
     const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>สติกเกอร์ครุภัณฑ์ NHP</title>
       <style>@page{size:A4;margin:10mm} body{margin:0;font-family:sans-serif}
       .grid{display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px}
@@ -569,7 +576,7 @@ function QRStickers({ go }) {
       <div class="grid">${cells}</div>
       <script>setTimeout(function(){window.print();},500);<\/script></body></html>`;
     const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); logAction("พิมพ์สติกเกอร์", "พิมพ์สติกเกอร์ครุภัณฑ์ " + sample.length + " ดวง", "b-info", "ผู้ดูแลระบบ", "qr"); toast("เปิดหน้าพิมพ์สติกเกอร์"); }
+    if (w) { w.document.write(html); w.document.close(); logAction("พิมพ์สติกเกอร์", "พิมพ์สติกเกอร์ครุภัณฑ์ " + devices.length + " ดวง", "b-info", "ผู้ดูแลระบบ", "qr"); toast("เปิดหน้าพิมพ์สติกเกอร์ " + devices.length + " ดวง"); }
     else {
       const blob = new Blob([html], { type: "text/html" }); const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = "สติกเกอร์ครุภัณฑ์.html"; a.click();
@@ -639,13 +646,18 @@ function QRStickers({ go }) {
               ))}
             </div>
             <hr className="hr" />
-            <div style={{ fontSize: 13, color: "var(--text-3)" }}>กำลังแสดง <b className="num" style={{ color: "var(--text)" }}>{perPage}</b> ดวง · ขนาด {size} ซม.</div>
+            <div style={{ fontSize: 13, color: "var(--text-3)" }}>อุปกรณ์ทั้งหมด <b className="num" style={{ color: "var(--text)" }}>{devices.length}</b> เครื่อง · ขนาด {size} ซม.</div>
+            <div style={{ fontSize: 12.5, color: "var(--text-3)", marginTop: 4 }}>กด “พิมพ์ / PDF” เพื่อพิมพ์สติกเกอร์ครบทุกเครื่อง</div>
           </div>
         </div>
 
         <div className="card card-pad" style={{ background: "var(--surface-2)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, color: "var(--text-3)", fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, color: "var(--text-3)", fontSize: 13, flexWrap: "wrap" }}>
             <Icon name="eye" size={16} />ตัวอย่างก่อนพิมพ์ — กระดาษ A4 · {sample.length} ดวง
+            <div className="spacer" style={{ flex: 1 }}></div>
+            <button className="btn btn-sm" disabled={curPage <= 0} onClick={() => setPage(p => Math.max(0, p - 1))}><Icon name="chevL" size={15} /></button>
+            <span className="num" style={{ minWidth: 90, textAlign: "center" }}>หน้า {curPage + 1} / {totalPages}</span>
+            <button className="btn btn-sm" disabled={curPage >= totalPages - 1} onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}><Icon name="chevR" size={15} /></button>
           </div>
           <div style={{ background: "#fff", borderRadius: 8, padding: 18, boxShadow: "var(--shadow)", margin: "0 auto", maxWidth: 640 }}>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols},1fr)`, gap: 8 }}>

@@ -68,6 +68,7 @@
       sb.from("repair_types").select("*"),
       sb.from("academic_years").select("*").order("year", { ascending: false }),
       sb.from("app_users").select("*").order("created_at"),
+      sb.from("audit_log").select("*").order("at", { ascending: false }).limit(500),
     ]);
     for (var i = 0; i < res.length; i++) {
       if (res[i].error) throw new Error(res[i].error.message);
@@ -75,7 +76,7 @@
     var subjects = res[0].data || [], deviceTypes = res[1].data || [], accessories = res[2].data || [],
         students = res[3].data || [], teachers = res[4].data || [], devices = res[5].data || [],
         borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [],
-        academicYears = res[9].data || [], appUsers = res[10].data || [];
+        academicYears = res[9].data || [], appUsers = res[10].data || [], auditRows = res[11].data || [];
 
     // lookup tables
     var typeName = {}; deviceTypes.forEach(function (t) { typeName[t.id] = t.name; });
@@ -136,10 +137,20 @@
 
     var curYear = (mYears.filter(function (y) { return y.current; })[0] || {}).year;
 
+    var mAudit = auditRows.map(function (a) {
+      var at = a.at ? new Date(a.at) : new Date();
+      var p = function (n) { return String(n).padStart(2, "0"); };
+      return { id: a.id, action: a.action, detail: a.detail || "", cls: a.cls || "b-info",
+               user: a.actor || "—", nav: a.nav || null,
+               date: at.getFullYear() + "-" + p(at.getMonth() + 1) + "-" + p(at.getDate()),
+               time: p(at.getHours()) + ":" + p(at.getMinutes()) + ":" + p(at.getSeconds()),
+               ip: a.ip || "" };
+    });
+
     return {
       students: mStudents, teachers: mTeachers, devices: mDevices, borrows: mBorrows,
       repairs: mRepairs, repairTypes: mRepairTypes, subjects: subjects.map(function (s) { return s.name; }),
-      accessories: mAccessories, academicYears: mYears, systemUsers: mUsers, year: curYear,
+      accessories: mAccessories, academicYears: mYears, systemUsers: mUsers, year: curYear, audit: mAudit,
     };
   }
 

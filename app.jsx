@@ -277,7 +277,10 @@ function App() {
   // Live mode: ไม่เชื่อ localStorage — รอยืนยัน session กับ Supabase ก่อน
   const [authed, setAuthed] = uS(() => !LIVE && localStorage.getItem("nhp-authed") === "1");
   const [role, setRole] = uS(() => localStorage.getItem("nhp-role") || "Super Admin");
+  const [userName, setUserName] = uS(() => localStorage.getItem("nhp-username-display") || "");
   const [booting, setBooting] = uS(LIVE);
+  // ชื่อที่แสดงจริง: จากบัญชีที่ login (app_users) > ค่าเริ่มต้นตามบทบาท
+  const displayName = userName || USER_NAMES[role] || (role === "Super Admin" ? "ผู้ดูแลระบบ" : role);
   const [page, setPage] = uS(() => localStorage.getItem("nhp-page") || "dashboard");
   const [theme, setTheme] = uS(() => localStorage.getItem("nhp-theme") || "light");
   const [primary, setPrimary] = uS(() => localStorage.getItem("nhp-primary") || "#1aa6e0");
@@ -315,7 +318,7 @@ function App() {
   uE(() => { localStorage.setItem("nhp-modules", JSON.stringify(modules)); }, [modules]);
   uE(() => { localStorage.setItem("nhp-custommenus", JSON.stringify(customMenus)); }, [customMenus]);
   uE(() => { localStorage.setItem("nhp-page", page); }, [page]);
-  uE(() => { localStorage.setItem("nhp-authed", authed ? "1" : "0"); localStorage.setItem("nhp-role", role); }, [authed, role]);
+  uE(() => { localStorage.setItem("nhp-authed", authed ? "1" : "0"); localStorage.setItem("nhp-role", role); localStorage.setItem("nhp-username-display", userName || ""); }, [authed, role, userName]);
   // Live mode: คืนสภาพ session เมื่อรีเฟรช (ตรวจกับ Supabase + ดึงข้อมูลจริง)
   uE(() => {
     if (!LIVE) return;
@@ -323,7 +326,7 @@ function App() {
     window.SB.auth.restore().then(res => {
       if (!alive) return;
       if (res && res.session) {
-        window.SB.hydrate().then(() => { if (alive) { setRole(res.role); setAuthed(true); setBooting(false); } })
+        window.SB.hydrate().then(() => { if (alive) { setRole(res.role); setUserName(res.name || ""); setAuthed(true); setBooting(false); } })
           .catch(() => { if (alive) setBooting(false); });
       } else { setBooting(false); }
     }).catch(() => { if (alive) setBooting(false); });
@@ -337,7 +340,7 @@ function App() {
 
   const go = (p, payload) => { setPage(p); setNavPayload(payload || null); setMobileNav(false); window.scrollTo(0, 0); };
   const doLogout = () => {
-    window.logAction && window.logAction("ออกจากระบบ", (USER_NAMES[role] || role) + " ออกจากระบบ", "b-muted", USER_NAMES[role] || role);
+    window.logAction && window.logAction("ออกจากระบบ", displayName + " ออกจากระบบ", "b-muted", displayName);
     if (LIVE && window.SB) window.SB.auth.signOut();
     setAuthed(false);
   };
@@ -351,13 +354,13 @@ function App() {
     </div>
   );
 
-  if (!authed) return <Login onLogin={(r, name) => { setRole(r); setAuthed(true); window.logAction && window.logAction("เข้าสู่ระบบ", (name || USER_NAMES[r] || r) + " (" + r + ") เข้าสู่ระบบ", "b-info", name || USER_NAMES[r] || r, "dashboard"); }} loginBg={loginBg} logo={store.logo} />;
+  if (!authed) return <Login onLogin={(r, name) => { setRole(r); setUserName(name || ""); setAuthed(true); window.logAction && window.logAction("เข้าสู่ระบบ", (name || USER_NAMES[r] || r) + " (" + r + ") เข้าสู่ระบบ", "b-info", name || USER_NAMES[r] || r, "dashboard"); }} loginBg={loginBg} logo={store.logo} />;
 
   const pages = {
-    dashboard: <Dashboard go={go} />, devices: <Devices go={go} intent={navPayload} />, borrow: <BorrowReturn go={go} user={USER_NAMES[role] || role} intent={navPayload} />,
+    dashboard: <Dashboard go={go} />, devices: <Devices go={go} intent={navPayload} />, borrow: <BorrowReturn go={go} user={displayName} intent={navPayload} />,
     overdue: <Overdue go={go} />, timeline: <Timeline go={go} />, qr: <QRStickers go={go} />,
     registry: <Registry go={go} />,
-    quick: <QuickStation go={go} user={USER_NAMES[role] || role} />,
+    quick: <QuickStation go={go} user={displayName} />,
     repair: <Repairs go={go} />, students: <Students go={go} intent={navPayload} />, teachers: <Teachers go={go} intent={navPayload} />, reports: <Reports go={go} />,
     audit: <AuditPage />, settings: <Settings go={go} theme={theme} setTheme={setTheme} primary={primary} setPrimary={setPrimary} modules={modules} setModules={setModules} loginBg={loginBg} setLoginBg={setLoginBg} customMenus={customMenus} setCustomMenus={setCustomMenus} />,
   };
@@ -393,7 +396,7 @@ function App() {
           <div className="side-user">
             <div className="avatar">{role === "นักเรียน" ? "นก" : role === "ครู" ? "คร" : "ผด"}</div>
             <div className="side-foot-txt" style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }} className="clip">{USER_NAMES[role] || (role === "Super Admin" ? "ผู้ดูแลระบบ" : role)}</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }} className="clip">{displayName}</div>
               <div style={{ fontSize: 12, color: "var(--text-3)" }} className="clip">{role}</div>
             </div>
             <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={doLogout} title="ออกจากระบบ"><Icon name="logout" size={16} /></button>

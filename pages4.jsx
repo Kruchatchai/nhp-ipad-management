@@ -16,8 +16,8 @@ function Timeline({ go }) {
   const dev = ipads.find(d => d.id === devId) || ipads[0];
   const events = store.deviceEvents[dev.assetTag] || [];
   const hist = useMemo(() => {
-    // baseline synthetic history; strip its synthetic "current" so real events drive the present
-    const h = DD.genHistory(dev).map(x => x.kind === "current" ? { ...x, kind: "borrow" } : x);
+    // ประวัติจริงจากเหตุการณ์ในระบบเท่านั้น (ไม่ใช้ข้อมูลสังเคราะห์)
+    const h = [];
     // append real, in-session ownership events (borrow / return / repair)
     events.forEach(e => h.push({ ...e, year: e.year || dev._evYear || String(parseInt(store.year)), term: e.term || "1" }));
     // ensure the present is reflected: device borrowed but no open real event → synthesize from live holder
@@ -74,7 +74,14 @@ function Timeline({ go }) {
         <div className="card">
           <div className="card-head"><h3>เส้นเวลาการครอบครอง</h3><div className="sub">{hist.length} รายการ</div></div>
           <div className="card-pad" style={{ paddingLeft: 28 }}>
-            <div style={{ position: "relative", paddingLeft: 30 }}>
+            {hist.length === 0 && (
+              <div style={{ textAlign: "center", padding: "36px 16px", color: "var(--text-3)" }}>
+                <Icon name="timeline" size={34} stroke={1.4} />
+                <div style={{ marginTop: 10, fontSize: 14.5 }}>ยังไม่มีประวัติการครอบครองของเครื่องนี้</div>
+                <div style={{ fontSize: 13, marginTop: 4 }}>ประวัติจะถูกบันทึกเมื่อมีการยืม–คืนผ่านระบบ</div>
+              </div>
+            )}
+            <div style={{ position: "relative", paddingLeft: 30, display: hist.length === 0 ? "none" : "block" }}>
               <div style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 2, background: "var(--border)" }}></div>
               {[...hist].reverse().map((h, i) => {
                 const m = kindMeta[h.kind];

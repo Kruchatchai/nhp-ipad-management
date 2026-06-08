@@ -230,7 +230,7 @@
     subjects: D.subjects.slice(),
     repairTypes: D.repairTypes.slice(),       // editable list of repair problem types
     accRepairTypes: ["สายชาร์จขาด/ชำรุด", "อะแดปเตอร์เสีย", "เคสแตก/ชำรุด", "ฟิล์มเสียหาย", "ปากกาใช้ไม่ได้", "อื่น ๆ"],
-    audit: buildInitialAudit(repairedBorrows, repairs.filter(r => ipadTags.has(r.device)), D.students),
+    audit: D.audit || buildInitialAudit(repairedBorrows, repairs.filter(r => ipadTags.has(r.device)), D.students),
     photos: {},          // key "s:<id>" / "t:<id>" -> dataURL
     personStatus,        // key "s:<id>" / "t:<id>" -> usage status
     logo: "assets/logo.png",
@@ -687,7 +687,7 @@ window.personActivity = (person) => {
   return out.filter(a => { const k = a.label + a.device + a.date; if (seen.has(k)) return false; seen.add(k); return true; })
     .sort((x, y) => (y.date || "").localeCompare(x.date || ""));
 };
-window.todayISO = () => "2569-06-05";
+window.todayISO = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return (d.getFullYear() + 543) + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
 window.pushDeviceEvent = (assetTag, ev) => {
   window.Store.update(st => {
     const list = (st.deviceEvents[assetTag] || []).slice();
@@ -760,6 +760,8 @@ function beShort(iso) {
   return dt.getDate() + " " + TH_MONTHS_SHORT[dt.getMonth()] + " " + (dt.getFullYear() + 543);
 }
 window.beLong = beLong; window.beShort = beShort; window.toISO = toISO; window.parseISO = parseISO;
+// วันที่วันนี้แบบไทยย่อ เช่น "8 มิ.ย. 2569" (อิงเวลาจริงของเครื่อง)
+window.todayTH = () => { const d = new Date(); return d.getDate() + " " + TH_MONTHS_SHORT[d.getMonth()] + " " + (d.getFullYear() + 543); };
 
 function BEDatePicker({ value, onChange, min }) {
   const { useState, useRef, useEffect } = React;

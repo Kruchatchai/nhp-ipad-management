@@ -272,7 +272,7 @@ function QuickStation({ go, user }) {
                     <Icon name="search" size={19} style={{ color: "var(--primary)" }} />
                     <input ref={inputRef} value={tag} onChange={e => { setTag(e.target.value); setNotFound(false); setShowSuggestions(e.target.value.length > 0); }}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                      placeholder="เช่น NHP-IPD-001, 001, หรือ ชื่อผู้ยืม" autoFocus
+                      placeholder={"เช่น " + ((store.ipads[0] && store.ipads[0].assetTag) || "NHP-IPD-001") + ", 01 หรือ ชื่อผู้ยืม"} autoFocus
                       style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", fontFamily: "var(--font-num)" }} />
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ height: 48, padding: "0 18px" }}><Icon name="search" size={17} />ค้นหา</button>
