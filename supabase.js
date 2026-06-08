@@ -37,6 +37,7 @@
         setPassword: function () { return Promise.resolve({ ok: false, error: "โหมดสาธิต" }); },
       },
       saveSettings: function () { return Promise.resolve({ ok: true }); },
+      savePersonStatus: function () { return Promise.resolve({ ok: true }); },
       deviceStatus: function (tag) {
         var s = window.Store && window.Store.snapshot();
         var d = s && s.ipads.find(function (x) { return x.assetTag === tag; });
@@ -77,6 +78,7 @@
       sb.from("app_users").select("*").order("created_at"),
       sb.from("audit_log").select("*").order("at", { ascending: false }).limit(500),
       sb.from("settings").select("*").eq("id", 1).maybeSingle(),
+      sb.from("person_status").select("*"),
     ]);
     for (var i = 0; i < res.length; i++) {
       if (res[i].error) throw new Error(res[i].error.message);
@@ -85,7 +87,7 @@
         students = res[3].data || [], teachers = res[4].data || [], devices = res[5].data || [],
         borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [],
         academicYears = res[9].data || [], appUsers = res[10].data || [], auditRows = res[11].data || [],
-        settingsRow = res[12].data || {};
+        settingsRow = res[12].data || {}, personStatusRows = res[13].data || [];
 
     // lookup tables
     var typeName = {}; deviceTypes.forEach(function (t) { typeName[t.id] = t.name; });
@@ -110,12 +112,17 @@
                price: d.price, status: d.status, statusCls: d.status_cls || devCls(d.status),
                holder: d.holder, holderLevel: d.holder_level, accessories: [], note: d.note || "" };
     });
+    // ชื่อผู้ถือ ณ ปัจจุบัน (อิง borrower_kind:borrower_id) → ถ้าเปลี่ยนชื่อครู/นักเรียน ทะเบียนยืมจะอัปเดตตาม
+    var personName = {};
+    mStudents.forEach(function (p) { personName["s:" + p.id] = p.prefix ? (p.prefix + p.first + " " + p.last) : (p.first + " " + p.last); });
+    mTeachers.forEach(function (p) { personName["t:" + p.id] = p.prefix ? (p.prefix + p.first + " " + p.last) : (p.first + " " + p.last); });
     var mBorrows = borrows.map(function (b) {
       var dev = devById[b.device_id] || {};
       var due = b.due_date ? new Date(b.due_date) : null;
       var overdue = due ? daysBetween(today, due) : 0;
+      var curName = personName[(b.borrower_kind || "") + ":" + b.borrower_id];
       return { id: b.id, device: dev.asset_tag || b.asset_tag, deviceId: b.device_id, model: dev.model,
-               type: typeName[dev.type] || "", holder: b.holder_name, level: b.level,
+               type: typeName[dev.type] || "", holder: curName || b.holder_name, level: b.level,
                borrowDate: b.borrow_date, dueDate: b.due_date, overdueDays: overdue,
                status: b.status, approver: "", borrowerKind: b.borrower_kind, borrowerId: b.borrower_id,
                accessories: b.accessories || [] };
@@ -156,11 +163,16 @@
                ip: a.ip || "" };
     });
 
+    var mPersonStatus = {};
+    personStatusRows.forEach(function (p) { mPersonStatus[p.person_kind + ":" + p.person_id] = p.status; });
+
     return {
       students: mStudents, teachers: mTeachers, devices: mDevices, borrows: mBorrows,
       repairs: mRepairs, repairTypes: mRepairTypes, subjects: subjects.map(function (s) { return s.name; }),
       accessories: mAccessories, academicYears: mYears, systemUsers: mUsers, year: curYear, audit: mAudit,
       rooms: (settingsRow && settingsRow.rooms) || [1, 2, 3, 4],
+      personStatus: mPersonStatus,
+      school: (settingsRow && settingsRow.school_name) ? { name: settingsRow.school_name, affiliation: settingsRow.affiliation, address: settingsRow.address } : undefined,
     };
   }
 
@@ -226,15 +238,21 @@
   //  ครอบคลุม: นักเรียน · ครู · อุปกรณ์ (iPad) — บันทึกถาวรทันที
   // =====================================================================
   function nn(v) { return v === undefined ? null : v; }
-  // UI object -> DB row (เฉพาะคอลัมน์ที่ DB เก็บ)
+  // แจ้งเตือนเมื่อบันทึกลง DB ล้มเหลว (ให้ผู้ใช้เห็น ไม่ fail เงียบ)
+  function notifyErr(table, msg) {
+    window.SB.lastSyncError = msg;
+    console.error("[NHP sync] " + table + ": " + msg);
+    try { window.dispatchEvent(new CustomEvent("nhp-sync-error", { detail: { table: table, message: msg } })); } catch (e) {}
+  }
+  // UI object -> DB row (กันค่า undefined ไม่ให้ชน NOT NULL)
   function rowStudent(s) {
     return { id: s.id, student_code: nn(s.code), citizen: nn(s.citizen), prefix: nn(s.prefix),
-      first_name: s.first, last_name: s.last, sex: nn(s.sex), level: s.level, room: Number(s.room) || 0,
+      first_name: s.first || "-", last_name: s.last || "-", sex: nn(s.sex), level: s.level || "ม.1", room: Number(s.room) || 1,
       no: nn(s.no), phone: nn(s.phone), parent: nn(s.parent), parent_phone: nn(s.parentPhone),
       graduated: !!s.graduated, status: nn(s.status) || "กำลังศึกษา", academic_year: nn(s.academicYear) };
   }
   function rowTeacher(t) {
-    return { id: t.id, code: nn(t.code), prefix: nn(t.prefix), first_name: t.first, last_name: t.last,
+    return { id: t.id, code: nn(t.code), prefix: nn(t.prefix), first_name: t.first || "-", last_name: t.last || "-",
       sex: nn(t.sex), subject: nn(t.subject), role: nn(t.role), homeroom: nn(t.homeroom),
       email: nn(t.email), phone: nn(t.phone), status: nn(t.status) || "ปฏิบัติงาน" };
   }
@@ -280,9 +298,7 @@
     if (del.length) ops.push(sb.from(table).delete().in("id", del));
     if (!ops.length) return;
     var results = await Promise.all(ops);
-    results.forEach(function (r) {
-      if (r && r.error) { window.SB.lastSyncError = r.error.message; console.error("[NHP sync] " + table + ": " + r.error.message); }
-    });
+    results.forEach(function (r) { if (r && r.error) notifyErr(table, r.error.message); });
   }
 
   // กลุ่มสาระ = array ของชื่อ (string) → sync ตามชื่อ (เพิ่ม/ลบ)
@@ -296,7 +312,7 @@
     if (del.length) ops.push(sb.from("subjects").delete().in("name", del));
     if (!ops.length) return;
     var results = await Promise.all(ops);
-    results.forEach(function (r) { if (r && r.error) { window.SB.lastSyncError = r.error.message; console.error("[NHP sync] subjects: " + r.error.message); } });
+    results.forEach(function (r) { if (r && r.error) notifyErr("subjects", r.error.message); });
   }
 
   // diff ทั้ง snapshot (เรียกจาก store หลัง update). ข้าม table ที่ไม่เปลี่ยน (อ้างอิงเท่ากัน)
@@ -375,5 +391,12 @@
     return { ok: true, data: (r.data && r.data[0]) || null };
   }
 
-  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff, users: users, saveSettings: saveSettings, deviceStatus: deviceStatus };
+  // บันทึกสถานะการแจ้งความประสงค์ของบุคคล (ยังไม่แจ้ง/กำลังใช้งาน/คืนแล้ว/ไม่ประสงค์ยืม)
+  async function savePersonStatus(kind, id, status) {
+    var r = await sb.from("person_status").upsert({ person_kind: kind, person_id: id, status: status, updated_at: new Date().toISOString() }, { onConflict: "person_kind,person_id" });
+    if (r.error) notifyErr("person_status", r.error.message);
+    return r.error ? { ok: false, error: r.error.message } : { ok: true };
+  }
+
+  window.SB = { live: true, auth: auth, hydrate: hydrate, loadSnapshot: loadSnapshot, saveAudit: saveAudit, db: db, syncDiff: syncDiff, users: users, saveSettings: saveSettings, deviceStatus: deviceStatus, savePersonStatus: savePersonStatus };
 })();

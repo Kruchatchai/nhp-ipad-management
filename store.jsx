@@ -154,8 +154,8 @@
   const _settings = loadSettings();
   // per-person device-usage status:
   //   "กำลังใช้งาน" (holding) · "คืนแล้ว" (returned) · "ไม่ประสงค์ยืม" (declined) · "ยังไม่แจ้ง" (not declared, default)
-  const personStatus = {};
-  // (populated AFTER borrows are finalized, below — avoids stale "กำลังใช้งาน")
+  const personStatus = { ...(D.personStatus || {}) };  // base = สถานะที่บันทึกไว้ใน DB
+  // (กำลังใช้งาน ถูก derive จาก borrows ด้านล่าง — avoids stale)
 
   const ipads = D.devices.filter(d => d.type === "ipad").map(d => ({ ...d }));
   // เรียงตามเลขเครื่องแบบธรรมชาติ (SC2 < SC10 < SC100) ทุกหน้าที่อ่านจาก ipads จะได้ลำดับถูก
@@ -214,9 +214,11 @@
     .filter(r => !(r.personKind && r.personId != null && _holderKeys.has(r.personKind + ":" + r.personId)));
   // people in the (filtered) return ledger are "คืนแล้ว"
   _returnLog.forEach(r => { if (r.personKind && r.personId != null) personStatus[r.personKind + ":" + r.personId] = "คืนแล้ว"; });
-  // seed a realistic minority as "ไม่ประสงค์ยืม"; everyone else stays "ยังไม่แจ้ง" by default
-  D.students.forEach(p => { const k = "s:" + p.id; if (!personStatus[k] && p.id % 7 === 0) personStatus[k] = "ไม่ประสงค์ยืม"; });
-  D.teachers.forEach(p => { const k = "t:" + p.id; if (!personStatus[k] && p.id % 5 === 0) personStatus[k] = "ไม่ประสงค์ยืม"; });
+  // (demo เท่านั้น) seed ตัวอย่าง "ไม่ประสงค์ยืม" — ข้ามในโหมด live ที่มี personStatus จาก DB แล้ว
+  if (!D.personStatus) {
+    D.students.forEach(p => { const k = "s:" + p.id; if (!personStatus[k] && p.id % 7 === 0) personStatus[k] = "ไม่ประสงค์ยืม"; });
+    D.teachers.forEach(p => { const k = "t:" + p.id; if (!personStatus[k] && p.id % 5 === 0) personStatus[k] = "ไม่ประสงค์ยืม"; });
+  }
 
   const s = {
     students: D.students.slice(),
@@ -239,7 +241,7 @@
     logo: "assets/logo.png",
     drive: loadDrive(),
     year: D.year || _settings.year,
-    school: _settings.school,
+    school: Object.assign({}, _settings.school, D.school || {}),
     gradHolders: [],     // graduated students still holding a device (kept for tracking)
     deviceEvents: {},    // assetTag -> [{holder, level, from, to, days, kind}] real borrow/return/repair events
     returnLog: _returnLog,  // borrow–return registry ledger
@@ -611,6 +613,9 @@ window.saveSchoolInfo = (school) => {
     try { localStorage.setItem("nhp-settings", JSON.stringify({ year: st.year, school })); } catch (e) {}
     return { school };
   });
+  // live: บันทึกข้อมูลโรงเรียนลงตาราง settings ด้วย
+  if (window.SB && window.SB.live && window.SB.saveSettings)
+    window.SB.saveSettings({ school_name: school.name, affiliation: school.affiliation, address: school.address });
 };
 /* recompute every iPad's repair/availability status from the current repairs list.
    A device with an active repair (รอดำเนินการ/กำลังซ่อม) shows "ชำรุด";
@@ -646,8 +651,10 @@ window.reconcileRepairs = () => window.syncDevicesFromRepairs();
 
 /* manual override of a person's device-usage status */
 window.setPersonStatus = (person, status) => {
-  const key = (person.level !== undefined ? "s:" : "t:") + person.id;
+  const kind = person.level !== undefined ? "s" : "t";
+  const key = kind + ":" + person.id;
   window.Store.update(st => ({ personStatus: { ...st.personStatus, [key]: status } }));
+  if (window.SB && window.SB.live) window.SB.savePersonStatus(kind, person.id, status);  // persist สถานะลง DB
   const name = (person.prefix || "") + person.first + " " + person.last;
   window.logAction("เปลี่ยนสถานะผู้ใช้", name + " → " + status, "b-info", "ผู้ดูแลระบบ", person.level !== undefined ? "students" : "teachers");
 };

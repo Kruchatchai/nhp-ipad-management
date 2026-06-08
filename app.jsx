@@ -339,6 +339,12 @@ function App() {
   const [role, setRole] = uS(() => localStorage.getItem("nhp-role") || "Super Admin");
   const [userName, setUserName] = uS(() => localStorage.getItem("nhp-username-display") || "");
   const [booting, setBooting] = uS(LIVE);
+  const [syncErr, setSyncErr] = uS("");
+  uE(() => {
+    const h = (e) => setSyncErr((e.detail && e.detail.message) || "บันทึกลงฐานข้อมูลไม่สำเร็จ");
+    window.addEventListener("nhp-sync-error", h);
+    return () => window.removeEventListener("nhp-sync-error", h);
+  }, []);
   const [recovery, setRecovery] = uS(false);
   const [recovPw, setRecovPw] = uS("");
   const [recovErr, setRecovErr] = uS("");
@@ -470,6 +476,13 @@ function App() {
 
   return (
     <div className="app">
+      {syncErr && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999, background: "var(--danger)", color: "#fff", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, fontSize: 14, boxShadow: "0 2px 10px rgba(0,0,0,.2)" }}>
+          <Icon name="alert" size={18} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>บันทึกลงฐานข้อมูลไม่สำเร็จ: {syncErr} — กรุณาตรวจสอบข้อมูลแล้วลองใหม่</span>
+          <button onClick={() => setSyncErr("")} style={{ border: 0, background: "rgba(255,255,255,.2)", color: "#fff", borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>ปิด</button>
+        </div>
+      )}
       <div className={"scrim" + (mobileNav ? " show" : "")} onClick={() => setMobileNav(false)}></div>
       <aside className={"sidebar" + (collapsed ? " collapsed" : "") + (mobileNav ? " mobile-open" : "")}>
         <div className="side-head">
