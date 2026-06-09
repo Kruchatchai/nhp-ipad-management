@@ -217,7 +217,7 @@
   // build the return ledger, then DROP any entry whose person currently holds a device
   // (a holder is "กำลังใช้งาน", not "คืนแล้ว") so dashboard returnLog count === StatusLookup คืนแล้ว count
   const _holderKeys = new Set(repairedBorrows.filter(b => b.borrowerId != null).map(b => b.borrowerKind + ":" + b.borrowerId));
-  const _returnLog = buildReturnLog(D.students, D.teachers)
+  const _returnLog = D.returnLog || buildReturnLog(D.students, D.teachers)
     .filter(r => !(r.personKind && r.personId != null && _holderKeys.has(r.personKind + ":" + r.personId)));
   // people in the (filtered) return ledger are "คืนแล้ว"
   _returnLog.forEach(r => { if (r.personKind && r.personId != null) personStatus[r.personKind + ":" + r.personId] = "คืนแล้ว"; });
@@ -387,7 +387,7 @@ window.recordReturn = (tx) => {
     const complete = !logItems.some(it => it.missingAcc.length);
     const now = new Date();
     const entry = {
-      id: Date.now(), date: tx.date || "2569-06-05",
+      id: window.uid(), date: tx.date || window.todayISO(),
       personName: tx.personName, personKind: tx.personKind, personId: tx.personId, level: tx.level,
       items: logItems, damaged, complete, receiver: tx.receiver || "ผู้ดูแลระบบ",
     };

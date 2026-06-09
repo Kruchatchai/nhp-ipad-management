@@ -80,6 +80,7 @@
       sb.from("settings").select("*").eq("id", 1).maybeSingle(),
       sb.from("person_status").select("*"),
       sb.from("acc_repairs").select("*"),
+      sb.from("return_log").select("*"),
     ]);
     for (var i = 0; i < res.length; i++) {
       if (res[i].error) throw new Error(res[i].error.message);
@@ -88,7 +89,8 @@
         students = res[3].data || [], teachers = res[4].data || [], devices = res[5].data || [],
         borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [],
         academicYears = res[9].data || [], appUsers = res[10].data || [], auditRows = res[11].data || [],
-        settingsRow = res[12].data || {}, personStatusRows = res[13].data || [], accRepairRows = res[14].data || [];
+        settingsRow = res[12].data || {}, personStatusRows = res[13].data || [], accRepairRows = res[14].data || [],
+        returnLogRows = res[15].data || [];
 
     // lookup tables
     var typeName = {}; deviceTypes.forEach(function (t) { typeName[t.id] = t.name; });
@@ -174,6 +176,11 @@
                problem: r.type, date: r.reported_at, status: r.status, statusCls: repCls(r.status), detail: r.note || "" };
     });
 
+    var mReturnLog = returnLogRows.map(function (r) {
+      return { id: r.id, date: r.rdate, personName: r.person_name, personKind: r.person_kind, personId: r.person_id,
+               level: r.level, items: r.items || [], damaged: r.damaged || [], complete: r.complete !== false, receiver: r.receiver };
+    });
+
     return {
       students: mStudents, teachers: mTeachers, devices: mDevices, borrows: mBorrows,
       repairs: mRepairs, repairTypes: mRepairTypes, subjects: subjects.map(function (s) { return s.name; }),
@@ -181,6 +188,7 @@
       rooms: (settingsRow && settingsRow.rooms) || [1, 2, 3, 4],
       personStatus: mPersonStatus,
       accRepairs: mAccRepairs,
+      returnLog: mReturnLog,
       school: (settingsRow && settingsRow.school_name) ? { name: settingsRow.school_name, affiliation: settingsRow.affiliation, address: settingsRow.address } : undefined,
     };
   }
@@ -290,6 +298,11 @@
       status: nn(r.status) || "รอดำเนินการ", status_cls: nn(r.statusCls), reporter: nn(r.reporter),
       report_date: nn(r.date), note: nn(r.detail) };
   }
+  function rowReturnLog(e) {
+    return { id: e.id, rdate: nn(e.date), person_name: nn(e.personName), person_kind: nn(e.personKind),
+      person_id: (e.personId != null ? e.personId : null), level: nn(e.level),
+      items: e.items || [], damaged: e.damaged || [], complete: e.complete !== false, receiver: nn(e.receiver) };
+  }
   function rowAccRepair(r) {
     return { id: r.id, ticket: nn(r.ticket), accessory_id: (typeof r.accId === "number" ? r.accId : null),
       borrower_kind: nn(r.borrowerKind), borrower_id: (r.borrowerId != null ? r.borrowerId : null),
@@ -360,6 +373,7 @@
     if (before.borrows !== after.borrows) jobs.push(syncTable("borrows", before.borrows, after.borrows, rowBorrow));
     if (before.repairs !== after.repairs) jobs.push(syncTable("repairs", before.repairs, after.repairs, rowRepair));
     if (before.accRepairs !== after.accRepairs) jobs.push(syncTable("acc_repairs", before.accRepairs, after.accRepairs, rowAccRepair));
+    if (before.returnLog !== after.returnLog) jobs.push(syncTable("return_log", before.returnLog, after.returnLog, rowReturnLog));
     if (before.subjects !== after.subjects) jobs.push(syncSubjects(before.subjects, after.subjects));
     if (before.personStatus !== after.personStatus) jobs.push(syncPersonStatus(before.personStatus, after.personStatus));
     return Promise.all(jobs).catch(function (e) { window.SB.lastSyncError = String(e); console.error("[NHP sync]", e); });
