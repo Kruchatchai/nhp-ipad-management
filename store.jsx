@@ -160,6 +160,8 @@
   const ipads = D.devices.filter(d => d.type === "ipad").map(d => ({ ...d }));
   // เรียงตามเลขเครื่องแบบธรรมชาติ (SC2 < SC10 < SC100) ทุกหน้าที่อ่านจาก ipads จะได้ลำดับถูก
   ipads.sort((a, b) => String(a.assetTag).localeCompare(String(b.assetTag), undefined, { numeric: true, sensitivity: "base" }));
+  // เรียงนักเรียน/ครู ตามรหัสแบบธรรมชาติ (SC652 < TC01 < TC02 < TC10)
+  const byCode = (a, b) => String(a.code || "").localeCompare(String(b.code || ""), undefined, { numeric: true, sensitivity: "base" });
   const repairs = D.repairs.map(r => ({ ...r }));
   // ===== Sync repairs <-> iPad status (single source of truth) =====
   const ACTIVE = ["รอดำเนินการ", "กำลังซ่อม"];
@@ -221,8 +223,8 @@
   }
 
   const s = {
-    students: D.students.slice(),
-    teachers: D.teachers.slice(),
+    students: D.students.slice().sort(byCode),
+    teachers: D.teachers.slice().sort(byCode),
     ipads,
     accessories: D.accessories || accDefaults,
     academicYears: D.academicYears || [],
