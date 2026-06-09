@@ -330,6 +330,24 @@
     results.forEach(function (r) { if (r && r.error) notifyErr("subjects", r.error.message); });
   }
 
+  // personStatus = map (key "s:id"/"t:id" -> สถานะ) → เก็บเฉพาะที่ "ประกาศ" จริง
+  // (ไม่ประสงค์ยืม/คืนแล้ว). ส่วน กำลังใช้งาน(derive)/ยังไม่แจ้ง(default) ลบ row ทิ้ง
+  async function syncPersonStatus(before, after) {
+    before = before || {}; after = after || {};
+    var ups = [], dels = [];
+    var keys = {}; Object.keys(before).forEach(function (k) { keys[k] = 1; }); Object.keys(after).forEach(function (k) { keys[k] = 1; });
+    Object.keys(keys).forEach(function (k) {
+      var nv = after[k], ov = before[k];
+      if (nv === ov) return;
+      var parts = k.split(":"); var kind = parts[0], id = Number(parts[1]);
+      if (!id) return;
+      if (nv === "ไม่ประสงค์ยืม" || nv === "คืนแล้ว") ups.push({ person_kind: kind, person_id: id, status: nv, updated_at: new Date().toISOString() });
+      else dels.push({ kind: kind, id: id });  // default/derived → ไม่เก็บ
+    });
+    if (ups.length) { var r = await sb.from("person_status").upsert(ups, { onConflict: "person_kind,person_id" }); if (r.error) notifyErr("person_status", r.error.message); }
+    for (var i = 0; i < dels.length; i++) { await sb.from("person_status").delete().eq("person_kind", dels[i].kind).eq("person_id", dels[i].id); }
+  }
+
   // diff ทั้ง snapshot (เรียกจาก store หลัง update). ข้าม table ที่ไม่เปลี่ยน (อ้างอิงเท่ากัน)
   function syncDiff(before, after) {
     if (!before || !after) return;
@@ -343,6 +361,7 @@
     if (before.repairs !== after.repairs) jobs.push(syncTable("repairs", before.repairs, after.repairs, rowRepair));
     if (before.accRepairs !== after.accRepairs) jobs.push(syncTable("acc_repairs", before.accRepairs, after.accRepairs, rowAccRepair));
     if (before.subjects !== after.subjects) jobs.push(syncSubjects(before.subjects, after.subjects));
+    if (before.personStatus !== after.personStatus) jobs.push(syncPersonStatus(before.personStatus, after.personStatus));
     return Promise.all(jobs).catch(function (e) { window.SB.lastSyncError = String(e); console.error("[NHP sync]", e); });
   }
 

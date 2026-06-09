@@ -660,8 +660,7 @@ window.reconcileRepairs = () => window.syncDevicesFromRepairs();
 window.setPersonStatus = (person, status) => {
   const kind = person.level !== undefined ? "s" : "t";
   const key = kind + ":" + person.id;
-  window.Store.update(st => ({ personStatus: { ...st.personStatus, [key]: status } }));
-  if (window.SB && window.SB.live) window.SB.savePersonStatus(kind, person.id, status);  // persist สถานะลง DB
+  window.Store.update(st => ({ personStatus: { ...st.personStatus, [key]: status } }));  // persist ผ่าน syncDiff (syncPersonStatus)
   const name = (person.prefix || "") + person.first + " " + person.last;
   window.logAction("เปลี่ยนสถานะผู้ใช้", name + " → " + status, "b-info", "ผู้ดูแลระบบ", person.level !== undefined ? "students" : "teachers");
 };
