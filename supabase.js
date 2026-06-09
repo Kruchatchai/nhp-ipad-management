@@ -79,6 +79,7 @@
       sb.from("audit_log").select("*").order("at", { ascending: false }).limit(500),
       sb.from("settings").select("*").eq("id", 1).maybeSingle(),
       sb.from("person_status").select("*"),
+      sb.from("acc_repairs").select("*"),
     ]);
     for (var i = 0; i < res.length; i++) {
       if (res[i].error) throw new Error(res[i].error.message);
@@ -87,7 +88,7 @@
         students = res[3].data || [], teachers = res[4].data || [], devices = res[5].data || [],
         borrows = res[6].data || [], repairs = res[7].data || [], repairTypes = res[8].data || [],
         academicYears = res[9].data || [], appUsers = res[10].data || [], auditRows = res[11].data || [],
-        settingsRow = res[12].data || {}, personStatusRows = res[13].data || [];
+        settingsRow = res[12].data || {}, personStatusRows = res[13].data || [], accRepairRows = res[14].data || [];
 
     // lookup tables
     var typeName = {}; deviceTypes.forEach(function (t) { typeName[t.id] = t.name; });
@@ -166,12 +167,20 @@
     var mPersonStatus = {};
     personStatusRows.forEach(function (p) { mPersonStatus[p.person_kind + ":" + p.person_id] = p.status; });
 
+    var accNameById = {}; accessories.forEach(function (a) { accNameById[a.id] = a.name; });
+    var mAccRepairs = accRepairRows.map(function (r) {
+      return { id: r.id, ticket: r.ticket, accId: r.accessory_id, accName: accNameById[r.accessory_id] || "", device: null,
+               borrowerName: r.borrower_name, borrowerKind: r.borrower_kind, borrowerId: r.borrower_id, level: r.level,
+               problem: r.type, date: r.reported_at, status: r.status, statusCls: repCls(r.status), detail: r.note || "" };
+    });
+
     return {
       students: mStudents, teachers: mTeachers, devices: mDevices, borrows: mBorrows,
       repairs: mRepairs, repairTypes: mRepairTypes, subjects: subjects.map(function (s) { return s.name; }),
       accessories: mAccessories, academicYears: mYears, systemUsers: mUsers, year: curYear, audit: mAudit,
       rooms: (settingsRow && settingsRow.rooms) || [1, 2, 3, 4],
       personStatus: mPersonStatus,
+      accRepairs: mAccRepairs,
       school: (settingsRow && settingsRow.school_name) ? { name: settingsRow.school_name, affiliation: settingsRow.affiliation, address: settingsRow.address } : undefined,
     };
   }
@@ -281,6 +290,12 @@
       status: nn(r.status) || "รอดำเนินการ", status_cls: nn(r.statusCls), reporter: nn(r.reporter),
       report_date: nn(r.date), note: nn(r.detail) };
   }
+  function rowAccRepair(r) {
+    return { id: r.id, ticket: nn(r.ticket), accessory_id: (typeof r.accId === "number" ? r.accId : null),
+      borrower_kind: nn(r.borrowerKind), borrower_id: (r.borrowerId != null ? r.borrowerId : null),
+      borrower_name: nn(r.borrowerName), level: nn(r.level), type: nn(r.problem),
+      status: nn(r.status) || "รอดำเนินการ", reported_at: nn(r.date), note: nn(r.detail) };
+  }
 
   function indexById(arr) { var m = {}; (arr || []).forEach(function (x) { if (x && x.id != null) m[x.id] = x; }); return m; }
 
@@ -326,6 +341,7 @@
     if (before.academicYears !== after.academicYears) jobs.push(syncTable("academic_years", before.academicYears, after.academicYears, rowYear));
     if (before.borrows !== after.borrows) jobs.push(syncTable("borrows", before.borrows, after.borrows, rowBorrow));
     if (before.repairs !== after.repairs) jobs.push(syncTable("repairs", before.repairs, after.repairs, rowRepair));
+    if (before.accRepairs !== after.accRepairs) jobs.push(syncTable("acc_repairs", before.accRepairs, after.accRepairs, rowAccRepair));
     if (before.subjects !== after.subjects) jobs.push(syncSubjects(before.subjects, after.subjects));
     return Promise.all(jobs).catch(function (e) { window.SB.lastSyncError = String(e); console.error("[NHP sync]", e); });
   }

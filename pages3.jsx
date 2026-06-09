@@ -34,7 +34,7 @@ function Overdue({ go }) {
 
   const saveDue = () => {
     const nd = dueRef.current || editDue.dueDate;
-    const overdueDays = Math.floor((parseISO(window.todayISO()) - parseISO(nd)) / 86400000);
+    const overdueDays = Math.floor((new Date() - parseISO(nd)) / 86400000);
     setRows(rows.map(r => r.id === editDue.id ? { ...r, dueDate: nd, overdueDays, status: overdueDays > 0 ? "เกินกำหนด" : overdueDays > -10 ? "ใกล้ครบกำหนด" : "ปกติ" } : r));
     toast("ปรับกำหนดคืนเป็น " + beShort(nd) + " แล้ว");
     setEditDue(null);

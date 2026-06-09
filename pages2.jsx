@@ -27,7 +27,7 @@ function Stepper({ steps, current }) {
 function BorrowReturn({ go, user, intent }) {
   const toast = React.useContext(ToastCtx);
   const [store, setStore] = useStore();
-  const TODAY = "2026-06-04";
+  const TODAY = window.todayISO();
   const [mode, setMode] = useState("borrow");
   const [step, setStep] = useState(0);
   const [device, setDevice] = useState(null);
@@ -138,7 +138,7 @@ function BorrowReturn({ go, user, intent }) {
   const confirm = () => {
     if (mode === "borrow") {
       const holderLabel = borrower.level ? borrower.level + "/" + borrower.room : "ครู";
-      const overdueDays = Math.floor((parseISO(window.todayISO()) - parseISO(due)) / 86400000);
+      const overdueDays = Math.floor((new Date() - parseISO(due)) / 86400000);
       setStore(st => ({
         ipads: st.ipads.map(d => d.id === device.id ? { ...d, status: "ถูกยืม", statusCls: "b-info", holder: borrower.prefix + borrower.first + " " + borrower.last, holderLevel: holderLabel } : d),
         accessories: st.accessories.map(x => acc[x.id] > 0 ? { ...x, qty: Math.max(0, x.qty - acc[x.id]) } : x),

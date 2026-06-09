@@ -230,7 +230,7 @@
     rooms: D.rooms || (window.NHP && window.NHP.rooms) || [1, 2, 3, 4],
     borrows: repairedBorrows,
     repairs: repairs.filter(r => ipadTags.has(r.device)),  // iPad repair tickets only (reconciles with dashboard)
-    accRepairs: buildAccRepairs(repairedBorrows, accDefaults),  // accessory repair tickets (separate board)
+    accRepairs: D.accRepairs || buildAccRepairs(repairedBorrows, accDefaults),  // accessory repair tickets (separate board)
     accStatus: buildAccStatus(accDefaults),  // { accId: { damaged, lost } } accumulated from returns
     subjects: D.subjects.slice(),
     repairTypes: D.repairTypes.slice(),       // editable list of repair problem types
@@ -561,10 +561,10 @@ window.addAccRepair = (rec, accId, accName, problem, opts = {}) => {
   window.Store.update(st => {
     const n = (st.accRepairs || []).length + 1;
     ticket = {
-      id: Date.now() + Math.random(), ticket: "AR-" + String(n).padStart(4, "0"),
+      id: window.uid(), ticket: "AR-" + String(n).padStart(4, "0"),
       accId, accName, device: rec.device || null,
       borrowerName: rec.holder, borrowerKind: rec.borrowerKind, borrowerId: rec.borrowerId, level: rec.level,
-      problem, date: "2569-06-07", status: "รอดำเนินการ", statusCls: "b-warn",
+      problem, date: window.todayISO(), status: "รอดำเนินการ", statusCls: "b-warn",
       detail: opts.detail || "แจ้งโดยผู้ดูแลระบบ",
       photos: opts.photos || [],
     };
@@ -701,7 +701,8 @@ window.personActivity = (person) => {
   return out.filter(a => { const k = a.label + a.device + a.date; if (seen.has(k)) return false; seen.add(k); return true; })
     .sort((x, y) => (y.date || "").localeCompare(x.date || ""));
 };
-window.todayISO = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return (d.getFullYear() + 543) + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
+// เก็บวันที่เป็น ค.ศ. (CE) ทั้งระบบ — แสดงผลเป็น พ.ศ. ผ่าน beShort/beLong (ที่ +543)
+window.todayISO = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
 window.pushDeviceEvent = (assetTag, ev) => {
   window.Store.update(st => {
     const list = (st.deviceEvents[assetTag] || []).slice();
