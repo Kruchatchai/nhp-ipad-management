@@ -160,8 +160,13 @@
   const ipads = D.devices.filter(d => d.type === "ipad").map(d => ({ ...d }));
   // เรียงตามเลขเครื่องแบบธรรมชาติ (SC2 < SC10 < SC100) ทุกหน้าที่อ่านจาก ipads จะได้ลำดับถูก
   ipads.sort((a, b) => String(a.assetTag).localeCompare(String(b.assetTag), undefined, { numeric: true, sensitivity: "base" }));
-  // เรียงนักเรียน/ครู ตามรหัสแบบธรรมชาติ (SC652 < TC01 < TC02 < TC10)
   const byCode = (a, b) => String(a.code || "").localeCompare(String(b.code || ""), undefined, { numeric: true, sensitivity: "base" });
+  // นักเรียน: เรียงตามชั้น→ห้อง→เลขที่ (ห้องน้อยไปมาก)
+  const lvNum = (lv) => { const m = String(lv || "").match(/(\d+)/); return m ? +m[1] : 99; };
+  const byClass = (a, b) => (lvNum(a.level) - lvNum(b.level)) || ((+a.room || 0) - (+b.room || 0)) || ((+a.no || 0) - (+b.no || 0)) || byCode(a, b);
+  // ครู: TC ขึ้นก่อน SC แล้วค่อยตามรหัสแบบธรรมชาติ
+  const tPref = (t) => { const c = String(t.code || ""); return c.indexOf("TC") === 0 ? 0 : c.indexOf("SC") === 0 ? 1 : 2; };
+  const byTeacher = (a, b) => (tPref(a) - tPref(b)) || byCode(a, b);
   const repairs = D.repairs.map(r => ({ ...r }));
   // ===== Sync repairs <-> iPad status (single source of truth) =====
   const ACTIVE = ["รอดำเนินการ", "กำลังซ่อม"];
@@ -223,8 +228,8 @@
   }
 
   const s = {
-    students: D.students.slice().sort(byCode),
-    teachers: D.teachers.slice().sort(byCode),
+    students: D.students.slice().sort(byClass),
+    teachers: D.teachers.slice().sort(byTeacher),
     ipads,
     accessories: D.accessories || accDefaults,
     academicYears: D.academicYears || [],

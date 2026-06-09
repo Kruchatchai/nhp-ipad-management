@@ -779,19 +779,28 @@ function Devices({ go, intent }) {
 
       {importOpen && (
         <ImportModal title="นำเข้าข้อมูลอุปกรณ์" headers={devHeaders} templateName="Template_อุปกรณ์" sampleRow={devSample}
-          existingKeys={list.map(d => d.assetTag)}
-          buildRecord={(row) => {
+          existing={list}
+          buildRecord={(row, match) => {
             const [assetTag, code, serial, typeName, brand, model, color, cap, budgetYear, receivedDate, status] = row.map(c => String(c).trim());
-            if (!assetTag) return null;
             const typeMap = { "iPad": "ipad", "Notebook": "notebook", "Chromebook": "chromebook", "กล้อง": "camera" };
-            return { id: Date.now() + Math.floor(Math.random() * 1e6), assetTag, code: code || "-", serial: serial || "-", type: typeMap[typeName] || "ipad", typeName: typeName || "iPad", brand: brand || "Apple", model: model || "iPad", color: color || "Silver", cap: cap || "-", budgetYear: parseInt(budgetYear) || 2569, receivedDate: receivedDate || window.todayISO(), price: null, status: status || "พร้อมใช้งาน", statusCls: status === "ชำรุด" ? "b-danger" : status === "ส่งซ่อม" ? "b-warn" : status === "สูญหาย" ? "b-muted" : "b-ok", holder: null, holderLevel: null, accessories: [], note: "" };
+            if (match) {
+              const m = { ...match };
+              if (assetTag) m.assetTag = assetTag; if (code) m.code = code; if (serial) m.serial = serial;
+              if (typeName) { m.typeName = typeName; m.type = typeMap[typeName] || match.type; }
+              if (brand) m.brand = brand; if (model) m.model = model; if (color) m.color = color; if (cap) m.cap = cap;
+              if (budgetYear) m.budgetYear = parseInt(budgetYear) || match.budgetYear; if (receivedDate) m.receivedDate = receivedDate;
+              if (status) { m.status = status; m.statusCls = status === "ชำรุด" ? "b-danger" : status === "ส่งซ่อม" ? "b-warn" : status === "สูญหาย" ? "b-muted" : status === "ถูกยืม" ? "b-info" : "b-ok"; }
+              return m;
+            }
+            if (!assetTag) return null;
+            return { id: window.uid(), assetTag, code: code || "-", serial: serial || "-", type: typeMap[typeName] || "ipad", typeName: typeName || "iPad", brand: brand || "Apple", model: model || "iPad", color: color || "Silver", cap: cap || "-", budgetYear: parseInt(budgetYear) || 2569, receivedDate: receivedDate || window.todayISO(), price: null, status: status || "พร้อมใช้งาน", statusCls: status === "ชำรุด" ? "b-danger" : status === "ส่งซ่อม" ? "b-warn" : status === "สูญหาย" ? "b-muted" : "b-ok", holder: null, holderLevel: null, accessories: [], note: "" };
           }}
           keyOf={(d) => d.assetTag}
           onClose={() => setImportOpen(false)}
           onImport={(res) => {
-            if (res.records.length) setStore(st => ({ ipads: [...res.records.filter(r => r.type === "ipad"), ...st.ipads] }));
-            logAction("นำเข้า Excel", "นำเข้าอุปกรณ์ " + res.valid + " รายการ" + (res.dupes ? " (ข้ามซ้ำ " + res.dupes + ")" : ""), "b-purple", "ผู้ดูแลระบบ", "devices");
-            toast("นำเข้าอุปกรณ์ " + res.valid + " รายการสำเร็จ" + (res.dupes ? " · ข้ามซ้ำ " + res.dupes : ""));
+            setStore(st => { const u = {}; (res.updates || []).forEach(x => u[x.id] = x); return { ipads: [...(res.records || []).filter(r => r.type === "ipad"), ...st.ipads.map(d => u[d.id] || d)] }; });
+            logAction("นำเข้า Excel", "อุปกรณ์: เพิ่ม " + res.inserted + " · อัปเดต " + res.updated, "b-purple", "ผู้ดูแลระบบ", "devices");
+            toast("นำเข้าอุปกรณ์สำเร็จ · เพิ่ม " + res.inserted + (res.updated ? " · อัปเดต " + res.updated : ""));
           }} />
       )}
 

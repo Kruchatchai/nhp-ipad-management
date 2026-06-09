@@ -892,18 +892,27 @@ function Students({ go, intent }) {
 
       {importOpen && (
         <ImportModal title="นำเข้าข้อมูลนักเรียน" headers={stuHeaders} templateName="Template_นักเรียน" sampleRow={stuSample}
-          existingKeys={students.map(s => (s.first + s.last))}
-          buildRecord={(row) => {
+          existing={students}
+          buildRecord={(row, match) => {
             const [code, citizen, prefix, first, last, sex, level, room, no, phone, parent, parentPhone, status] = row.map(c => String(c).trim());
-            if (!first || !last) return null;
-            return { id: Date.now() + Math.floor(Math.random() * 1e6), code: code || ("69" + String(Date.now()).slice(-4)), citizen: citizen || "-", prefix: prefix || "เด็กชาย", first, last, sex: sex || "ชาย", level: level || "ม.1", room: parseInt(room) || 1, no: parseInt(no) || 0, phone: phone || "-", parent: parent || "-", parentPhone: parentPhone || "-", status: status || "กำลังศึกษา" };
+            if (match) {
+              const m = { ...match };
+              if (code) m.code = code; if (citizen) m.citizen = citizen; if (prefix) m.prefix = prefix;
+              if (first) m.first = first; if (last) m.last = last; if (sex) m.sex = sex;
+              if (level) m.level = level; if (room) m.room = parseInt(room) || match.room; if (no) m.no = parseInt(no) || match.no;
+              if (phone) m.phone = phone; if (parent) m.parent = parent; if (parentPhone) m.parentPhone = parentPhone;
+              if (status) m.status = status;
+              return m;
+            }
+            if (!first && !last && !code) return null;
+            return { id: window.uid(), code: code || ("69" + String(Date.now()).slice(-4)), citizen: citizen || "-", prefix: prefix || "เด็กชาย", first: first || "-", last: last || "-", sex: sex || "ชาย", level: level || "ม.1", room: parseInt(room) || 1, no: parseInt(no) || 0, phone: phone || "-", parent: parent || "-", parentPhone: parentPhone || "-", status: status || "กำลังศึกษา" };
           }}
-          keyOf={(s) => s.first + s.last}
+          keyOf={(s) => String(s.code || "").trim() ? ("c:" + String(s.code).trim()) : ("n:" + (s.first || "") + (s.last || ""))}
           onClose={() => setImportOpen(false)}
           onImport={(res) => {
-            if (res.records.length) setStore(st => ({ students: [...res.records, ...st.students] }));
-            logAction("นำเข้า Excel", "นำเข้านักเรียน " + res.valid + " รายการ" + (res.dupes ? " (ข้ามซ้ำ " + res.dupes + ")" : ""), "b-purple", "ผู้ดูแลระบบ", "students");
-            toast("นำเข้านักเรียน " + res.valid + " รายการสำเร็จ" + (res.dupes ? " · ข้ามซ้ำ " + res.dupes : ""));
+            setStore(st => { const u = {}; (res.updates || []).forEach(x => u[x.id] = x); return { students: [...(res.records || []), ...st.students.map(s => u[s.id] || s)] }; });
+            logAction("นำเข้า Excel", "นักเรียน: เพิ่ม " + res.inserted + " · อัปเดต " + res.updated, "b-purple", "ผู้ดูแลระบบ", "students");
+            toast("นำเข้านักเรียนสำเร็จ · เพิ่ม " + res.inserted + (res.updated ? " · อัปเดต " + res.updated : ""));
           }} />
       )}
 

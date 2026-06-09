@@ -279,18 +279,26 @@ function Teachers({ go, intent }) {
 
       {importOpen && (
         <ImportModal title="นำเข้าข้อมูลครู / บุคลากร" headers={tHeaders} templateName="Template_ครูบุคลากร" sampleRow={tSample}
-          existingKeys={teachers.map(t => (t.first + t.last))}
-          buildRecord={(row) => {
+          existing={teachers}
+          buildRecord={(row, match) => {
             const [code, prefix, first, last, subject, role, homeroom, phone, email, status] = row.map(c => String(c).trim());
-            if (!first || !last) return null;
-            return { id: Date.now() + Math.floor(Math.random() * 1e6), code: code || ("T" + String(Date.now()).slice(-3)), prefix: prefix || "นาย", first, last, subject: subject || (subjects[0] || "-"), role: role || "ครูผู้สอน", homeroom: homeroom && homeroom !== "-" ? homeroom : null, phone: phone || "-", email: email || "-", status: status || "ปฏิบัติงาน", sex: prefix === "นาง" || prefix === "นางสาว" ? "หญิง" : "ชาย" };
+            if (match) {
+              const m = { ...match };
+              if (code) m.code = code; if (prefix) m.prefix = prefix; if (first) m.first = first; if (last) m.last = last;
+              if (subject) m.subject = subject; if (role) m.role = role;
+              if (homeroom && homeroom !== "-") m.homeroom = homeroom;
+              if (phone) m.phone = phone; if (email) m.email = email; if (status) m.status = status;
+              return m;
+            }
+            if (!first && !last && !code) return null;
+            return { id: window.uid(), code: code || ("T" + String(Date.now()).slice(-3)), prefix: prefix || "นาย", first: first || "-", last: last || "-", subject: subject || (subjects[0] || "-"), role: role || "ครูผู้สอน", homeroom: homeroom && homeroom !== "-" ? homeroom : null, phone: phone || "-", email: email || "-", status: status || "ปฏิบัติงาน", sex: prefix === "นาง" || prefix === "นางสาว" ? "หญิง" : "ชาย" };
           }}
-          keyOf={(t) => t.first + t.last}
+          keyOf={(t) => String(t.code || "").trim() ? ("c:" + String(t.code).trim()) : ("n:" + (t.first || "") + (t.last || ""))}
           onClose={() => setImportOpen(false)}
           onImport={(res) => {
-            if (res.records.length) setStore(st => ({ teachers: [...res.records, ...st.teachers] }));
-            logAction("นำเข้า Excel", "นำเข้าครู/บุคลากร " + res.valid + " รายการ" + (res.dupes ? " (ข้ามซ้ำ " + res.dupes + ")" : ""), "b-purple", "ผู้ดูแลระบบ", "teachers");
-            toast("นำเข้าครู " + res.valid + " รายการสำเร็จ" + (res.dupes ? " · ข้ามซ้ำ " + res.dupes : ""));
+            setStore(st => { const u = {}; (res.updates || []).forEach(x => u[x.id] = x); return { teachers: [...(res.records || []), ...st.teachers.map(t => u[t.id] || t)] }; });
+            logAction("นำเข้า Excel", "ครู/บุคลากร: เพิ่ม " + res.inserted + " · อัปเดต " + res.updated, "b-purple", "ผู้ดูแลระบบ", "teachers");
+            toast("นำเข้าครูสำเร็จ · เพิ่ม " + res.inserted + (res.updated ? " · อัปเดต " + res.updated : ""));
           }} />
       )}
     </div>

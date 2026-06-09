@@ -899,16 +899,16 @@ function printSticker(device) {
 window.printSticker = printSticker;
 
 /* ===== Import modal — template download, file pick, validate, import ===== */
-function ImportModal({ title, headers, templateName, sampleRow, existingKeys = [], buildRecord, keyOf, onClose, onImport }) {
+function ImportModal({ title, headers, templateName, sampleRow, existing = [], existingKeys = [], buildRecord, keyOf, onClose, onImport }) {
   const toast = React.useContext(ToastCtx);
   const ref = useRef(null);
   const [file, setFile] = useState(null);
   const [over, setOver] = useState(false);
-  const [parsed, setParsed] = useState(null); // { total, valid, dupes, invalid, records, preview }
+  const [parsed, setParsed] = useState(null); // { total, valid, inserted, updated, invalid, records, updates, preview }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  // real XLSX/CSV parsing via SheetJS, with dedup against existingKeys + within-file
+  // real XLSX/CSV parsing via SheetJS — รายการใหม่ = เพิ่ม, รายการที่มีอยู่ = อัปเดต (merge ข้อมูลที่เพิ่มมา)
   const handleFile = (f) => {
     if (!f) return;
     setFile(f); setBusy(true); setParsed(null); setErr(null);
@@ -921,19 +921,31 @@ function ImportModal({ title, headers, templateName, sampleRow, existingKeys = [
         let aoa = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
         // drop a header row if present (first cell matches first column header)
         if (aoa.length && String(aoa[0][0]).trim() === String(headers[0]).trim()) aoa = aoa.slice(1);
-        const existing = new Set((existingKeys || []).map(k => String(k).trim().toLowerCase()));
+        // map ของที่มีอยู่ในระบบ (key -> record) เพื่อ merge
+        const existMap = {};
+        (existing || []).forEach(rec => { const k = String(keyOf ? keyOf(rec) : "").trim().toLowerCase(); if (k) existMap[k] = rec; });
+        (existingKeys || []).forEach(k => { const kk = String(k).trim().toLowerCase(); if (kk && !existMap[kk]) existMap[kk] = true; });
         const seen = new Set();
-        const records = []; const previewRows = []; let dupes = 0, invalid = 0;
+        const records = []; const updates = []; const previewRows = []; let invalid = 0;
         aoa.forEach(row => {
           if (!row || row.every(c => String(c).trim() === "")) return;
-          const rec = buildRecord ? buildRecord(row) : row;
-          const key = String(rec && keyOf ? keyOf(rec) : (row[0] || "")).trim().toLowerCase();
-          if (!rec || !key) { invalid++; return; }
-          if (existing.has(key) || seen.has(key)) { dupes++; if (previewRows.length < 4) previewRows.push({ row, dup: true }); return; }
-          seen.add(key); records.push(rec);
-          if (previewRows.length < 4) previewRows.push({ row, dup: false });
+          const fresh = buildRecord ? buildRecord(row, null) : row;
+          const key = String(fresh && keyOf ? keyOf(fresh) : (row[0] || "")).trim().toLowerCase();
+          if (!fresh || !key) { invalid++; return; }
+          if (seen.has(key)) return;  // ซ้ำภายในไฟล์เดียวกัน — ข้าม
+          seen.add(key);
+          const match = existMap[key];
+          if (match && match !== true) {
+            updates.push(buildRecord ? buildRecord(row, match) : fresh);  // อัปเดต/merge เข้าของเดิม
+            if (previewRows.length < 4) previewRows.push({ row, dup: true });
+          } else if (match === true) {
+            if (previewRows.length < 4) previewRows.push({ row, dup: true });  // มีอยู่แต่ไม่มี record ให้ merge → ข้าม
+          } else {
+            records.push(fresh);
+            if (previewRows.length < 4) previewRows.push({ row, dup: false });
+          }
         });
-        setParsed({ total: records.length + dupes + invalid, valid: records.length, dupes, invalid, records, preview: previewRows });
+        setParsed({ total: records.length + updates.length + invalid, valid: records.length + updates.length, inserted: records.length, updated: updates.length, invalid, records, updates, preview: previewRows });
         setBusy(false);
       } catch (er) {
         setBusy(false);
@@ -979,15 +991,16 @@ function ImportModal({ title, headers, templateName, sampleRow, existingKeys = [
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
             <div className="card card-pad" style={{ textAlign: "center", padding: 14 }}><div className="num" style={{ fontSize: 24, fontWeight: 700 }}>{parsed.total}</div><div style={{ fontSize: 12.5, color: "var(--text-3)" }}>พบในไฟล์</div></div>
             <div className="card card-pad" style={{ textAlign: "center", padding: 14 }}><div className="num" style={{ fontSize: 24, fontWeight: 700, color: "var(--ok)" }}>{parsed.valid}</div><div style={{ fontSize: 12.5, color: "var(--text-3)" }}>พร้อมนำเข้า</div></div>
-            <div className="card card-pad" style={{ textAlign: "center", padding: 14 }}><div className="num" style={{ fontSize: 24, fontWeight: 700, color: parsed.dupes ? "var(--warn)" : "var(--text-3)" }}>{parsed.dupes}</div><div style={{ fontSize: 12.5, color: "var(--text-3)" }}>ซ้ำในระบบ (ข้าม)</div></div>
+            <div className="card card-pad" style={{ textAlign: "center", padding: 14 }}><div className="num" style={{ fontSize: 24, fontWeight: 700, color: parsed.updated ? "var(--info)" : "var(--text-3)" }}>{parsed.updated}</div><div style={{ fontSize: 12.5, color: "var(--text-3)" }}>อัปเดตข้อมูลเดิม</div></div>
           </div>
-          {parsed.valid === 0 && <div style={{ marginTop: 12, fontSize: 13, color: "var(--warn)", textAlign: "center" }}>ไม่มีรายการใหม่ให้นำเข้า — ทุกรายชื่อมีอยู่ในระบบแล้ว</div>}
+          <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--text-3)", textAlign: "center" }}>รายการใหม่จะถูกเพิ่ม · รายการที่มีอยู่แล้วจะถูกอัปเดตด้วยข้อมูลที่กรอกเพิ่มมา</div>
+          {parsed.valid === 0 && <div style={{ marginTop: 12, fontSize: 13, color: "var(--warn)", textAlign: "center" }}>ไม่มีข้อมูลให้นำเข้า</div>}
           {parsed.preview && parsed.preview.length > 0 && (
             <div className="table-wrap" style={{ marginTop: 14, border: "1px solid var(--border)", borderRadius: 12 }}>
               <table className="tbl"><thead><tr>{headers.slice(0, 4).map(h => <th key={h}>{h}</th>)}<th>สถานะ</th></tr></thead>
                 <tbody>
                   {parsed.preview.map((pr, i) => (
-                    <tr key={i}>{pr.row.slice(0, 4).map((c, j) => <td key={j}>{String(c)}</td>)}<td>{pr.dup ? <Badge cls="b-warn" dot>ซ้ำ — ข้าม</Badge> : <Badge cls="b-ok" dot>นำเข้า</Badge>}</td></tr>
+                    <tr key={i}>{pr.row.slice(0, 4).map((c, j) => <td key={j}>{String(c)}</td>)}<td>{pr.dup ? <Badge cls="b-info" dot>อัปเดต</Badge> : <Badge cls="b-ok" dot>เพิ่มใหม่</Badge>}</td></tr>
                   ))}
                   <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--text-3)", fontSize: 13 }}>… แสดงตัวอย่างจากไฟล์จริง</td></tr>
                 </tbody>
